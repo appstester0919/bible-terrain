@@ -1,0 +1,21 @@
+{
+ "bbox": {
+  "lon_min": 113.834587,
+  "lon_max": 114.440971,
+  "lat_min": 22.153194,
+  "lat_max": 22.562094
+ },
+ "img_w": 1024,
+ "img_h": 742,
+ "src": "HK 18-district boundary (gist howawong/487f3cfe98d8ec4b5df73aa8b73f4121, hkg.json)",
+ "note": "one texture tile = the Hong Kong bounding box; the app tiles it across the whole map plane",
+ "cos_il": 0.847166,
+ "hk_real_width_m": 62428.321835,
+ "hk_real_height_m": 45213.7086,
+ "tile_world_w": 73690.772511,
+ "tile_world_h": 53370.537873,
+ "repeat_x": 2.655404,
+ "repeat_y": 5.132988,
+ "offset_x": -0.827702,
+ "offset_y": -2.066494
+}

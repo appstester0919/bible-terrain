@@ -1,0 +1,33 @@
+{
+  "min": -1552.85,
+  "max": 1282.0,
+  "scale": 1.0,
+  "offset": 0.0,
+  "decode": "elev_m = (R*256 + G + B/256) - 32768",
+  "heightmap_encoding": "16-bit normalized: v=(R*256+G)/65535 ; elev_m = min + v*(max-min)",
+  "z": 10,
+  "tiles": {
+    "x0": 610,
+    "x1": 614,
+    "y0": 412,
+    "y1": 418,
+    "count": 35
+  },
+  "bbox": {
+    "lon_min": 34.453125,
+    "lon_max": 36.2109375,
+    "lat_min": 31.052933985705156,
+    "lat_max": 33.13755119234615
+  },
+  "image": {
+    "width": 1280,
+    "height": 1792
+  },
+  "meters_per_pixel_x": 152.87405657035248,
+  "meters_per_pixel_y": 152.87405657035274,
+  "centre_lat": 32.09524258902565,
+  "world_metres": {
+    "width": 195678.7924100512,
+    "height": 273950.3093740721
+  }
+}

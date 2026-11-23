@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>以色列 3D 聖經地形地圖 · Israel 3D Biblical Terrain</title>
+<style>
+  :root{
+    --ink:#f2f6f4; --dim:#a9b8bd; --panel:rgba(12,18,22,.74); --line:rgba(255,255,255,.14);
+    --accent:#ffd23f; --cjk:"Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#9fb6c9;
+    font-family:var(--cjk);color:var(--ink)}
+  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+
+  .panel{position:fixed;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:10px 12px;backdrop-filter:blur(7px);font-size:13px;line-height:1.45}
+
+  /* HUD, top-left */
+  #hud{top:14px;left:14px;min-width:238px}
+  #hud h1{margin:0 0 6px;font-size:15px;letter-spacing:.02em}
+  #hud h1 small{display:block;font-weight:400;font-size:11px;color:var(--dim);letter-spacing:.06em}
+  #hud dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:8px 0 0}
+  #hud dt{color:var(--dim);font-size:11.5px}
+  #hud dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600}
+  #help{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);
+    font-size:11.5px;color:var(--dim)}
+  #help b{color:var(--ink);font-weight:600}
+  body.nohelp #help{display:none}
+
+  /* site list, right */
+  #sites{top:14px;right:14px;width:236px;max-height:calc(100% - 28px);overflow:auto;padding:10px}
+  #sites h2{margin:0 0 8px;font-size:13px}
+  #sites h2 small{color:var(--dim);font-weight:400}
+  #sitelist{list-style:none;margin:0;padding:0}
+  #sitelist li{display:flex;align-items:baseline;gap:7px;padding:5px 6px;border-radius:6px;
+    cursor:pointer;border:1px solid transparent}
+  #sitelist li:hover{background:rgba(255,210,63,.14);border-color:rgba(255,210,63,.4)}
+  #sitelist b{font-size:13px;flex:0 0 auto}
+  #sitelist span{flex:1;font-size:11px;color:var(--dim)}
+  #sitelist em{font-style:normal;font-size:10.5px;color:var(--accent);font-variant-numeric:tabular-nums}
+
+  /* legend + scale bar, bottom-left */
+  #legendbox{bottom:14px;left:14px}
+  #legendbox h3{margin:0 0 6px;font-size:11.5px;color:var(--dim);letter-spacing:.05em;font-weight:600}
+  #legend{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:11px}
+  #legend li{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+  #legend i{width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.35)}
+  #scalewrap{margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  #scalebar{height:7px;border:1px solid var(--ink);border-top:none;position:relative;width:120px}
+  #scalebar::before,#scalebar::after{content:'';position:absolute;top:-5px;width:1px;height:5px;background:var(--ink)}
+  #scalebar::before{left:0}#scalebar::after{right:0}
+  #scaletext{font-size:11px;color:var(--dim);margin-top:3px;font-variant-numeric:tabular-nums}
+
+  /* north arrow */
+  #north{bottom:14px;right:14px;width:auto;padding:8px 12px;text-align:center}
+  #north .a{font-size:19px;line-height:1;color:var(--accent)}
+  #north .t{font-size:10.5px;color:var(--dim);letter-spacing:.14em}
+
+  /* projected HTML labels for the sites */
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:20}
+  .label{position:absolute;left:0;top:0;white-space:nowrap;text-align:center;
+    font-size:12px;line-height:1.2;padding:3px 7px;border-radius:6px;
+    background:rgba(10,14,17,.8);border:1px solid rgba(255,210,63,.55);
+    text-shadow:0 1px 3px rgba(0,0,0,.9)}
+  .label b{display:block;font-size:13px;color:var(--accent)}
+  .label span{font-size:10px;color:var(--dim)}
+
+  /* control buttons, top-centre */
+  #controls{top:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;padding:8px;
+    flex-wrap:wrap;justify-content:center;max-width:min(92vw,560px)}
+  #controls button{font:inherit;font-size:12.5px;color:var(--ink);background:rgba(255,255,255,.10);
+    border:1px solid var(--line);border-radius:8px;padding:7px 11px;cursor:pointer;white-space:nowrap}
+  #controls button:hover{background:rgba(255,210,63,.22);border-color:rgba(255,210,63,.5)}
+  #controls button.on{background:rgba(255,210,63,.42);border-color:rgba(255,210,63,.8)}
+  body.touch #controls{top:auto;bottom:104px;left:50%}
+
+  /* touch control pad (mobile) */
+  #pad{display:none;position:fixed;inset:auto 0 0 0;padding:12px 14px 16px;z-index:30;
+    justify-content:space-between;align-items:flex-end;pointer-events:none}
+  body.touch #pad{display:flex}
+  body.touch #legendbox{display:none}
+  #pad .padgrp{display:flex;gap:8px;pointer-events:auto}
+  #pad button{width:56px;height:56px;border-radius:50%;font:inherit;font-size:12px;color:var(--ink);
+    background:rgba(12,18,22,.66);border:1px solid var(--line);pointer-events:auto;touch-action:none}
+  #pad button.pressed{background:rgba(255,210,63,.45)}
+  #pad .boost{width:72px;height:72px;border-color:rgba(255,210,63,.6)}
+
+  #toast{display:none;position:fixed;left:50%;bottom:100px;transform:translateX(-50%);z-index:60;
+    background:rgba(12,18,22,.9);border:1px solid rgba(255,210,63,.5);padding:9px 14px;border-radius:9px;
+    font-size:12.5px;max-width:80vw;text-align:center}
+
+  #fatal{display:none;position:fixed;inset:auto 14px 14px 14px;background:#5b1616;border:1px solid #a33;
+    color:#ffd9d9;padding:12px;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;z-index:99}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:#101820;font-size:14px;letter-spacing:.1em;z-index:50;transition:opacity .4s}
+  body.ready #loading{opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="labels"></div>
+
+<div id="hud" class="panel">
+  <h1>以色列 3D 聖經地形<small>ISRAEL 3D · BIBLICAL TERRAIN · FREE FLIGHT</small></h1>
+  <dl>
+    <dt>海拔 Altitude</dt><dd id="alt">–</dd>
+    <dt>经纬度 Lat/Lon</dt><dd id="gps">–</dd>
+    <dt>速度 Speed</dt><dd id="speed">–</dd>
+    <dt>FPS</dt><dd id="fps">–</dd>
+  </dl>
+  <div id="help">
+    <b>WASD</b> / 方向键 飞行 · <b>Q/E</b> (R/F) 升降 · <b>Shift</b> 加速<br>
+    <b>拖曳鼠标</b> 转变视角 · <b>滚轮</b> 升高/降低<br>
+    <b>点击站点</b> 或右侧列表 → 飞向该处 · <b>H</b> 开关说明<br>
+    垂直放大 <b id="exag">3x</b>（地形高度为可视化而放大）
+  </div>
+</div>
+
+<div id="controls" class="panel">
+  <button id="btn_hk" type="button">香港地圖：關</button>
+  <button id="btn_view" type="button">2D 俯視</button>
+  <button id="btn_gyro" type="button">感應器：關</button>
+  <button id="btn_cal" type="button">校準</button>
+  <button id="btn_boost" type="button">加速</button>
+</div>
+
+<div id="sites" class="panel">
+  <h2>聖經地點 <small>16 sites</small></h2>
+  <ul id="sitelist"></ul>
+</div>
+
+<div id="legendbox" class="panel">
+  <h3>高程圖例 HYPSOMETRIC (m)</h3>
+  <ul id="legend"></ul>
+  <div id="scalewrap">
+    <div id="scalebar"></div>
+    <div id="scaletext">– km</div>
+  </div>
+</div>
+
+<div id="north" class="panel"><div class="a">▲</div><div class="t">N 北</div></div>
+<div id="pad">
+  <div class="padgrp">
+    <button type="button" data-touch="left">◀</button>
+    <button type="button" data-touch="fwd">▲</button>
+    <button type="button" data-touch="right">▶</button>
+    <button type="button" data-touch="back">▼</button>
+  </div>
+  <div class="padgrp">
+    <button type="button" data-touch="down">－</button>
+    <button type="button" data-touch="up">＋</button>
+    <button type="button" class="boost" data-touch="boost">加速</button>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="fatal"></div>
+<div id="loading">載入真實地形數據… loading DEM terrain</div>
+
+<script>
+  // Touch devices get the on-screen control pad.
+  if (matchMedia('(pointer: coarse)').matches || innerWidth < 820) {
+    document.body.classList.add('touch');
+  }
+</script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

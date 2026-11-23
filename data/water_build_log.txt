@@ -1,0 +1,74 @@
+=== israel3d water builder v12  2026-11-24 01:04:17 ===
+grid 1280x1792  MPP(equatorial) 152.874 m/px  lat 31.0541..33.1376  cos^2 0.7012..0.7339
+1 px = 0.02337 km2 projected, 0.01677 km2 true ground (at mid-lat)
+
+--- DEM ---
+DEM 1280x1792  min -1552.8 max 1282.0
+
+--- ocean: Natural Earth 10m ocean polygon ---
+  ocean polygon area: 6295.8 km2 (true ground)
+  sea coastline runs: 1
+  sea vector polygons: 1
+  DEM gap fill inside the coastal band: 18.4 km2
+
+--- lakes ---
+
+  == Dead Sea  level -401 m  expected ~678 km2 ==
+     NE outline Dead Sea               spherical    656.3 km2 | raster    666.0 km2
+     NE outline Dead Sea               spherical    197.1 km2 | raster    200.4 km2
+     NE outline UNION           raster    866.4 km2
+     DEM contour at   -401 m    raster    678.6 km2
+     DEM flat bed (-415.0 m)  raster    375.9 km2
+     -> DEM contour TRIMMED by the NE outline: 678.6 -> 622.0 km2
+     -> CHOSEN 622.0 km2  (DEM contour at -401 m, trimmed by the Natural Earth outline)
+     part Dead Sea               below level:  93.6% of the polygon
+     part Dead Sea               below level:   6.4% of the polygon
+
+  == Sea of Galilee  level -209 m  expected ~166 km2 ==
+     NE outline Sea of Galilee         spherical    160.1 km2 | raster    162.8 km2
+     NE outline UNION           raster    162.8 km2
+     DEM contour at   -209 m    raster    150.6 km2
+     DEM flat bed (-216.0 m)  raster     70.7 km2
+     -> CHOSEN 162.8 km2  (Natural Earth outline (union) - matches the -209 m shoreline)
+     part Sea of Galilee         below level:  88.5% of the polygon
+
+--- rivers ---
+  OFFLINE: using cached overpass response osm_rivers.json (3406 elements)
+  OSM ways kept: 634
+  rivers: 160 lines, 2264 km total, source=OSM Overpass waterway=river/stream (min kept 8.0 km)
+     نهر الأردن - נהר הירדן                     47.3 km   145 pts
+     نهر الزرقاء                                46.2 km   128 pts
+     نهر الأردن - נהר הירדן                     3  overpass overpass.private.coffee get failed: TimeoutError The read operation timed out
+�חל הערבה                                  32.0 km   100 pts
+     وادي الموجب                                29.2 km    84 pts
+     נחל ענים                                   27.7 km    87 pts
+     נחל הבשור                                  26.7 km    69 pts
+     Wadi bin Hammad                            24.2 km    68 pts
+     נחל דישון                                  23.9 km    70 pts
+     נחל באר שבע                                23.7 km    58 pts
+     وادي الكرك                                 23.7 km    72 pts
+     נחל באר שבע                                23.2 km    69 pts
+     נהר הירדן                                  22.3 km    37 pts
+     نهر الأردن - נהר הירדן                     22.0 km    68 pts
+     נחל תקוע                                   22.0 km    70 pts
+     Wadi Al-Mugair                             21.9 km    65 pts
+     נהר הירדן                                  21.4 km     6 pts
+     وادي الرقاد                                21.4 km    61 pts
+     نهر الأردن - נהר הירדן                     21.2 km    65 pts
+  Jordan reaches kept: 9, 199 km
+
+--- assembling the water raster ---
+  water.png written: 1280x1792
+  coastline.json: 1 sea runs, 2 lakes
+     Dead Sea           level -401 m  622.0 km2  1078 boundary segments
+     Sea of Galilee     level -209 m  162.8 km2  358 boundary segments
+  dropping dry basin part Dead Sea               (6.4% below level)
+  water_vector.json: 3 bodies
+     Mediterranean Sea  level     0.0 m  1 parts  1264 ring pts  0 hole pts
+     Dead Sea           level  -401.0 m  1 parts  624 ring pts  0 hole pts
+     Sea of Galilee     level  -209.0 m  1 parts  448 ring pts  0 hole pts
+  river clipping: 7 rivers touched water, 159 lines now
+  rivers.json: 159 lines, 2328 km
+  water_meta.json: [{"name": "Mediterranean Sea", "level_m": 0.0, "area_km2": 6314.2}, {"name": "Dead Sea", "level_m": -401.0, "area_km2": 655.9, "expected_km2": 678.0, "error_pct": -3.3, "source": "DEM contour at -401 m, trimmed by the Natural Earth outline"}, {"name": "Sea of Galilee", "level_m": -209.0, "area_km2": 158.6, "expected_km2": 166.0, "error_pct": -4.5, "source": "Natural Earth outline (union) - matches the -209 m shoreline"}]
+
+DONE_OK

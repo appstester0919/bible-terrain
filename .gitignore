@@ -1,0 +1,14 @@
+# Development / verification screenshots (not part of the published site)
+*.png
+!data/*.png
+!data/tiles/*.png
+!vendor/*.png
+
+# Build logs and diagnostics
+*.log
+data/diag3.txt
+data/diag3_build.log
+
+# Local scratch
+.DS_Store
+node_modules/
