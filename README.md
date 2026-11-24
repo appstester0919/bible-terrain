@@ -107,9 +107,18 @@ Fallback chain, in order:
 
 | situation | what drives the camera |
 |---|---|
-| fresh rate, identified channel, non-zero | the rotation rate |
-| rate is zero, stale (> 400 ms) or unidentified | the tilt angle |
+| fresh rate on an identified channel | the rotation rate (the dead zone is applied to the *smoothed* rate, so a hand at rest gives a smooth zero) |
+| rate stream stale (> 400 ms), or no channel identified | the tilt angle |
 | no sensor data at all | touch pad and keyboard only |
+
+The rate is used whenever it is *available*, not only while it is large. An
+earlier build switched to the tilt path whenever the instantaneous rate
+happened to be below the dead zone, so a phone that was turning slowly — or
+crossing zero at the top of a flick — changed steering source mid-gesture.
+Because the tilt path is **position** based (the angle away from the
+calibrated pose), that switch made a phone held at 30 degrees produce a
+full-scale command and kept the camera running after the user had stopped
+rotating. That was the "6-axis too sensitive" behaviour.
 
 A dead sensor stream is detected (no orientation for 1 s) and then produces no
 gyro command at all, so the touch pad keeps full control.

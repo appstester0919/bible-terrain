@@ -1170,9 +1170,17 @@ function gyroSteer(dt) {
   let dGamma = wrapDeg(gyro.sGamma - b.gamma);
   let dBeta = wrapDeg(gyro.sBeta - b.beta);
 
-  // A rotation-rate reading is only used when it is fresh, when the channel
-  // has been identified at runtime, and when it is actually a non-zero
-  // angular velocity.  Otherwise the tilt angle drives the axis.
+  // A rotation-rate reading is used when it is FRESH and when its channel has
+  // been identified at runtime.  The dead zone is applied to the SMOOTHED
+  // rate below, so a device that is barely moving - or has just come to a
+  // stop - produces a smooth zero command.
+  //
+  // The tilt path is NOT a substitute for a slow rate.  It is POSITION based
+  // (the angle away from the calibrated pose), so switching to it while the
+  // device is merely turning slowly makes a phone held at 30 degrees produce
+  // a full-scale command and keeps the camera running after the user has
+  // stopped rotating.  That switch was the "6-axis too sensitive" behaviour.
+  // The tilt path is only for devices that report no usable rotation rate.
   const fresh = (performance.now() - gyro.rateAt) <= GYRO.rateStaleMs;
   const kk = 1 - Math.exp(-dt * 16);
   let turnCmd = null, pitchCmd = null;
@@ -1180,7 +1188,7 @@ function gyroSteer(dt) {
 
   if (fresh && gyro.turnCh) {
     const rv = gyro.rate[gyro.turnCh];
-    if (typeof rv === 'number' && isFinite(rv) && Math.abs(rv) > GYRO.deadRate) {
+    if (typeof rv === 'number' && isFinite(rv)) {
       gyro.sRoll += (gyro.turnSign * rv - gyro.sRoll) * kk;
       turnCmd = deadZoneCurve(gyro.sRoll, GYRO.deadRate, GYRO.fullRate);
       usedRate = true;
@@ -1190,7 +1198,7 @@ function gyroSteer(dt) {
 
   if (fresh && gyro.pitchCh) {
     const pv = gyro.rate[gyro.pitchCh];
-    if (typeof pv === 'number' && isFinite(pv) && Math.abs(pv) > GYRO.deadRate) {
+    if (typeof pv === 'number' && isFinite(pv)) {
       gyro.sPitch += (gyro.pitchSign * pv - gyro.sPitch) * kk;
       pitchCmd = deadZoneCurve(gyro.sPitch, GYRO.deadRate, GYRO.fullRate);
       usedRate = true;
