@@ -747,7 +747,27 @@ function buildMarkers(meta, sites) {
 // flight game: the craft always moves forward and the player steers by
 // tilting the device. Devices without a usable sensor fall back to the
 // on-screen pad and the keyboard.
-const gyro = { active: false, beta: 0, gamma: 0, rotZ: 0, accel: 0, base: null };
+const gyro = { active: false, beta: 0, gamma: 0, rollRate: 0, pitchRate: 0,
+               accel: 0, base: null, sBeta: 0, sGamma: 0, hasRate: false, sens: 1 };
+
+// Gyro feel, tuned the way mobile flight games do it:
+//  * a DEAD ZONE, so a resting hand does not drift;
+//  * a QUADRATIC response curve, so small tilts give fine control and large
+//    tilts give full deflection;
+//  * a LOW-PASS FILTER on the raw sensor values, so the view does not jitter;
+//  * a hard CAP on the resulting turn/pitch rate.
+// Absolute tilt angles are noisy and always too twitchy on their own, so the
+// rotation rate (angular velocity) is preferred when the device reports it.
+const GYRO = {
+  deadTilt: 5,      // degrees of tilt that are ignored
+  fullTilt: 30,     // tilt that reaches full deflection
+  deadRate: 5,      // deg/s of rotation rate that is ignored
+  fullRate: 90,     // deg/s of rotation rate that reaches full deflection
+  maxTurn: 42,      // deg/s cap on the turn rate
+  maxPitch: 20      // deg/s cap on the pitch rate
+};
+const GYRO_SENS = { '低': 0.6, '中': 1.0, '高': 1.5 };
+let gyroSensName = '中';
 
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -758,7 +778,16 @@ function toast(msg) {
 }
 function gyroCalibrate() {
   gyro.base = { beta: gyro.beta, gamma: gyro.gamma };
+  gyro.sBeta = gyro.beta; gyro.sGamma = gyro.gamma;
   toast('已校準：以目前姿勢為水平');
+}
+function gyroSetSens(name) {
+  if (!GYRO_SENS[name]) return;
+  gyroSensName = name;
+  gyro.sens = GYRO_SENS[name];
+  const b = document.getElementById('btn_sens');
+  if (b) b.textContent = '靈敏度：' + name;
+  toast('感應器靈敏度：' + name);
 }
 function enableGyro() {
   const DOE = window.DeviceOrientationEvent;
@@ -785,9 +814,28 @@ function onDeviceOrient(e) {
   if (!gyro.base) gyroCalibrate();
 }
 function onDeviceMotion(e) {
-  if (e.rotationRate && typeof e.rotationRate.z === 'number') gyro.rotZ = e.rotationRate.z;
+  // rotationRate is the angular velocity (3 more axes on top of the 3
+  // orientation angles): alpha/beta/gamma, or the older x/y/z spelling.
+  const rr = e.rotationRate;
+  if (rr) {
+    const z = (typeof rr.z === 'number') ? rr.z
+            : (typeof rr.alpha === 'number') ? rr.alpha : 0;
+    const x = (typeof rr.x === 'number') ? rr.x
+            : (typeof rr.beta === 'number') ? rr.beta : 0;
+    gyro.rollRate = z; gyro.pitchRate = x;
+    gyro.hasRate = true;
+  }
   const a = e.accelerationIncludingGravity || e.acceleration;
   if (a) gyro.accel = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+}
+
+// Turn a raw input value into a normalised -1..1 command with a dead zone at
+// the bottom and a quadratic ramp above it.
+function deadZoneCurve(v, dead, full) {
+  const s = Math.sign(v), m = Math.abs(v);
+  if (m <= dead) return 0;
+  const t = Math.min(1, (m - dead) / Math.max(1e-6, full - dead));
+  return s * t * t;
 }
 
 // ------------------------------------------------------------- flight controls
@@ -818,16 +866,35 @@ function updateFlight(dt) {
   if (keys['q'] || keys['f']) up -= 1;
   fwd += state.touch.fwd; side += state.touch.side; up += state.touch.up;
 
-  // Gyro steering: roll to turn, tilt forward/back to pitch. Prefer the real
-  // gyro rate (rotationRate.z); fall back to the roll angle when the device
-  // does not report a rotation rate.
+  // Gyro steering. Tilt (or the rotation rate when available) is converted to
+  // a -1..1 command with a dead zone and a quadratic ramp, then converted to
+  // a capped rate in degrees per second. This is what stops the camera from
+  // snapping around when the phone is moved slightly.
   if (gyro.active) {
+    // low-pass filter the raw angles (frame-rate independent)
+    const k = 1 - Math.exp(-dt * 8);
+    gyro.sBeta += (gyro.beta - gyro.sBeta) * k;
+    gyro.sGamma += (gyro.gamma - gyro.sGamma) * k;
     const b = gyro.base || { beta: 0, gamma: 0 };
-    const dGamma = gyro.gamma - b.gamma;
-    const dBeta = gyro.beta - b.beta;
-    const yawRate = gyro.rotZ ? (-gyro.rotZ * 0.35) : (dGamma * 0.030);
-    yaw += yawRate * dt;
-    pitch = THREE.MathUtils.clamp(pitch - dBeta * 0.022 * dt, -MAXPITCH, MAXPITCH);
+    let dGamma = gyro.sGamma - b.gamma;
+    let dBeta = gyro.sBeta - b.beta;
+    // keep the tilt difference in the meaningful range
+    if (dGamma > 180) dGamma -= 360; else if (dGamma < -180) dGamma += 360;
+
+    // Steering source: the angular rate is far smoother than absolute tilt,
+    // so use it when the device reports it; otherwise fall back to the tilt.
+    let turnCmd;
+    if (gyro.hasRate && Math.abs(gyro.rollRate) > GYRO.deadRate) {
+      turnCmd = deadZoneCurve(-gyro.rollRate, GYRO.deadRate, GYRO.fullRate);
+    } else {
+      turnCmd = deadZoneCurve(dGamma, GYRO.deadTilt, GYRO.fullTilt);
+    }
+    const pitchCmd = deadZoneCurve(dBeta, GYRO.deadTilt, GYRO.fullTilt);
+
+    const turnRate = THREE.MathUtils.degToRad(GYRO.maxTurn * gyro.sens) * turnCmd;
+    const pitchRate = THREE.MathUtils.degToRad(GYRO.maxPitch * gyro.sens) * pitchCmd;
+    yaw += turnRate * dt;
+    pitch = THREE.MathUtils.clamp(pitch + pitchRate * dt, -MAXPITCH, MAXPITCH);
     if (fwd === 0) fwd = 1;                    // arcade flight: always moving
     if (gyro.accel > 12) fwd = 1 + Math.min(0.6, (gyro.accel - 12) * 0.05);
   }
@@ -1234,6 +1301,44 @@ async function main() {
   });
   const btnCal = document.getElementById('btn_cal');
   if (btnCal) btnCal.addEventListener('click', () => gyroCalibrate());
+  const btnSens = document.getElementById('btn_sens');
+  if (btnSens) {
+    btnSens.textContent = '靈敏度：' + gyroSensName;
+    btnSens.addEventListener('click', () => {
+      const order = ['低', '中', '高'];
+      gyroSetSens(order[(order.indexOf(gyroSensName) + 1) % order.length]);
+    });
+  }
+
+  // Side panels are drawers on a phone: hidden by default, opened with the
+  // edge handle, closed with the handle or the X inside the panel.
+  const body = document.body;
+  const drawer = (tab, cls, panel) => {
+    const t = document.getElementById(tab), p = document.getElementById(panel);
+    const toggle = () => {
+      const on = body.classList.toggle(cls);
+      if (p) p.classList.toggle('open', on);
+    };
+    if (t) t.addEventListener('click', toggle);
+    return toggle;
+  };
+  const toggleLeft = drawer('tab_left', 'show-left', 'hud');
+  drawer('tab_right', 'show-right', 'sites');
+  const closeHud = document.getElementById('close_hud');
+  if (closeHud) closeHud.addEventListener('click', () => {
+    body.classList.remove('show-left');
+  });
+  const closeSites = document.getElementById('close_sites');
+  if (closeSites) closeSites.addEventListener('click', () => {
+    body.classList.remove('show-right');
+  });
+  // Tapping the map closes an open drawer (but never the one you just opened).
+  // NOTE: do not name this `scene` — that would shadow the module-level three.js
+  // scene inside main() and break renderer.render().
+  const canvasEl = document.getElementById('scene');
+  if (canvasEl) canvasEl.addEventListener('pointerdown', () => {
+    body.classList.remove('show-left', 'show-right');
+  });
   const btnBoost = document.getElementById('btn_boost');
   if (btnBoost) btnBoost.addEventListener('click', () => {
     state.touch.boost = !state.touch.boost;
@@ -1320,7 +1425,9 @@ async function main() {
     viewMode: () => viewMode,
     gyroReport: () => ({
       active: gyro.active, beta: gyro.beta, gamma: gyro.gamma,
-      rotZ: gyro.rotZ, accel: gyro.accel, base: gyro.base,
+      rollRate: gyro.rollRate, pitchRate: gyro.pitchRate,
+      accel: gyro.accel, base: gyro.base,
+      sens: gyro.sens, sensName: gyroSensName, hasRate: gyro.hasRate,
     }),
     hkReport: () => ({
       visible: !!(state.hkOverlay && state.hkOverlay.visible),

@@ -41,7 +41,48 @@ scene, no extra vertex cost. North is up. Fog is disabled in the flat view.
 * Velocity uses exponential damping, with a speed cap so the camera can never
   run away.
 
-### 4. Metric-correct scale bar
+#### Gyroscope feel (tuned the way mobile flight games do it)
+
+The raw sensor is far too twitchy to feed straight into the camera, so the
+input goes through four stages:
+
+| stage | setting | why |
+|---|---|---|
+| **dead zone** | 5 deg of tilt, 5 deg/s of rotation rate | a hand at rest must not drift |
+| **response curve** | quadratic (tilt squared) | small tilts give fine control, large tilts give full deflection |
+| **low-pass filter** | frame-rate independent, `k = 1 - exp(-dt*8)` | removes sensor jitter |
+| **rate cap** | 42 deg/s turn, 20 deg/s pitch (before the sensitivity multiplier) | a flick can never snap the camera around |
+
+The angular **rotation rate** is preferred over the absolute tilt angle when
+the device reports it, because a rate is far smoother than an angle. The
+tilt angle is the fallback.
+
+A **靈敏度 (sensitivity)** button scales the result: 低 0.6x, 中 1.0x, 高 1.5x.
+A **校準 (calibrate)** button sets the current pose as the neutral pose, so the
+phone can be held at a comfortable angle.
+
+Measured response (degrees per second of camera rotation):
+
+| input | 低 | 中 | 高 |
+|---|---|---|---|
+| tilt 3 deg | 0 | 0 | 0 |
+| tilt 15 deg | 1.5 | 2.6 | 3.9 |
+| tilt 30 deg | 10.1 | 17.1 | ~25 |
+| roll 20 deg | 7.4 | 12.3 | 18.8 |
+| roll 40 deg | — | 40 (capped) | — |
+
+### 4. Layout that gets out of the way
+On any touch device — or any window narrower than 1100 px — the left telemetry
+panel and the right site list are **drawers**: hidden by default, opened by
+tapping the slim handle on that edge, closed by tapping the handle again, the
+`X` inside the panel, or the map itself. The map stays unobstructed.
+
+The button row is a single horizontally scrollable strip above the flight pad;
+the scale bar and compass sit in the top corners. Measured overlap check
+across 412x915, 360x740, 820x1180 and 1440x900: **zero overlapping or
+offscreen panels**.
+
+### 5. Metric-correct scale bar
 The scale bar is measured empirically, not algebraically: a ray is marched against
 the terrain to find the ground point under the screen centre, two ground points are
 projected to screen pixels, and the true great-circle distance between them is
@@ -104,6 +145,8 @@ The build is fully offline-capable (all network inputs are cached in `data/cache
 | M | toggle the Hong Kong overlay |
 | V | toggle 2D / 3D view |
 | H | toggle the help panel |
+| 靈敏度 | cycle the gyroscope sensitivity (低 / 中 / 高) |
+| 校準 | set the current phone pose as the neutral pose |
 
 Altitude is clamped to terrain + 50 m, so you cannot fly through the ground.
 
