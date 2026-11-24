@@ -65,10 +65,31 @@
   #scalebar::before{left:0}#scalebar::after{right:0}
   #scaletext{font-size:11px;color:var(--dim);margin-top:3px;font-variant-numeric:tabular-nums}
 
-  /* north arrow */
-  #north{bottom:14px;right:14px;width:auto;padding:8px 12px;text-align:center}
-  #north .a{font-size:19px;line-height:1;color:var(--accent)}
-  #north .t{font-size:10.5px;color:var(--dim);letter-spacing:.14em}
+  /* Compass: shows the direction the camera is ACTUALLY looking at.
+     The needle rotates with the live camera heading, the dial prints the
+     cardinal points and the label gives the cardinal name plus the bearing
+     in degrees - so it can never keep claiming "北" while the map faces
+     another way. */
+  #north{bottom:14px;right:14px;width:auto;padding:7px 10px 6px;text-align:center}
+  #north .rose{position:relative;width:52px;height:52px;margin:0 auto;border-radius:50%;
+    border:1px solid var(--line);background:rgba(255,255,255,.05)}
+  #north .rose span{position:absolute;font-size:8px;line-height:1;color:var(--dim);font-weight:700}
+  #north .cn{top:4px;left:50%;transform:translateX(-50%);color:var(--accent)}
+  #north .ce{right:4px;top:50%;transform:translateY(-50%)}
+  #north .cs{bottom:4px;left:50%;transform:translateX(-50%)}
+  #north .cw{left:4px;top:50%;transform:translateY(-50%)}
+  #north .needle{position:absolute;inset:0;transform:rotate(0deg);transition:transform .08s linear}
+  #north .needle i{position:absolute;left:50%;top:50%;width:0;height:0;
+    transform:translate(-50%,-100%);border-left:5px solid transparent;border-right:5px solid transparent;
+    border-bottom:19px solid var(--accent);filter:drop-shadow(0 0 3px rgba(0,0,0,.7))}
+  #north .needle b{position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;
+    border-radius:50%;background:var(--accent);opacity:.85}
+  #north .mode{display:none;position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);
+    font-size:7.5px;background:var(--panel);border:1px solid var(--line);padding:0 4px;border-radius:4px;
+    color:var(--dim)}
+  body.view2d #north .mode{display:block}
+  #north .t{font-size:10.5px;color:var(--dim);letter-spacing:.03em;margin-top:5px;
+    font-variant-numeric:tabular-nums;white-space:nowrap}
 
   /* projected HTML labels for the sites */
   #labels{position:fixed;inset:0;pointer-events:none;z-index:20}
@@ -92,7 +113,7 @@
      bottom    : control buttons (one scrollable row) then the flight pad
      The side panels are drawers and open over the map.
   */
-  body.compact #controls{top:auto;bottom:112px;left:50%;transform:translateX(-50%);
+  body.compact #controls{top:auto;bottom:172px;left:50%;transform:translateX(-50%);
     flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;
     max-width:96vw;padding:6px;gap:6px;-webkit-overflow-scrolling:touch}
   body.compact #controls button{font-size:11.5px;padding:6px 9px}
@@ -100,13 +121,49 @@
   body.compact #legendbox h3{display:none}
   body.compact #scalewrap{margin-top:0;padding-top:0;border-top:none}
   body.compact #north{top:8px;right:8px;bottom:auto;z-index:1;padding:6px 10px}
-  body.compact #north .a{font-size:16px}
-  body.compact #north .t{font-size:9px}
+  body.compact #north .rose{width:44px;height:44px}
+  body.compact #north .t{font-size:9.5px}
   body.compact.show-left #hud{top:56px}
-  body.compact.show-right #sites{top:56px;bottom:168px}
+  body.compact.show-right #sites{top:92px;bottom:168px}
   /* Without a flight pad (narrow desktop window) the button row can sit at
      the very bottom. */
   body.compact:not(.touch) #controls{bottom:14px}
+  body.compact:not(.touch) #toast{bottom:100px}
+  /* the toast sits above the control row and the flight pad */
+  body.compact.touch #toast{bottom:214px}
+  /* while the place drawer is open it owns the right edge, so the compass
+     steps aside instead of overlapping it */
+
+  /* Cross-shaped virtual D-pad (one control, four direction arms) on the
+     LEFT of the screen, like a game pad.  The four arms keep the original
+     forward / side flight meaning (up = forward, down = back,
+     left / right = strafe) and are drawn with CSS shapes so a held finger
+     can never select text. */
+  #dpad{position:relative;width:132px;height:132px;pointer-events:auto;touch-action:none;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent}
+  #dpad::before,#dpad::after{content:'';position:absolute;background:rgba(12,18,22,.64);
+    border:1px solid var(--line);border-radius:12px}
+  #dpad::before{left:44px;top:0;width:44px;height:132px}
+  #dpad::after{top:44px;left:0;width:132px;height:44px}
+  #dpad .arm{position:absolute;width:0;height:0;pointer-events:none;
+    --arm-c:rgba(233,238,242,.55);transition:border-color .06s linear}
+  #dpad .arm-u{left:50%;top:13px;transform:translateX(-50%);
+    border-left:9px solid transparent;border-right:9px solid transparent;
+    border-bottom:14px solid var(--arm-c)}
+  #dpad .arm-d{left:50%;bottom:13px;transform:translateX(-50%);
+    border-left:9px solid transparent;border-right:9px solid transparent;
+    border-top:14px solid var(--arm-c)}
+  #dpad .arm-l{top:50%;left:13px;transform:translateY(-50%);
+    border-top:9px solid transparent;border-bottom:9px solid transparent;
+    border-right:14px solid var(--arm-c)}
+  #dpad .arm-r{top:50%;right:13px;transform:translateY(-50%);
+    border-top:9px solid transparent;border-bottom:9px solid transparent;
+    border-left:14px solid var(--arm-c)}
+  #dpad .arm.on{--arm-c:var(--accent);filter:drop-shadow(0 0 4px rgba(255,210,63,.55))}
+  #dpad .hub{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;
+    border-radius:50%;background:rgba(233,238,242,.30);pointer-events:none}
+  #dpad.pressed .hub{background:var(--accent)}
 
   /* touch control pad (mobile) */
   #pad{display:none;position:fixed;inset:auto 0 0 0;padding:12px 14px 16px;z-index:30;
@@ -117,23 +174,15 @@
      scale bar is kept, because it is what makes the size comparison work. */
   body.compact #legendbox h3{display:none}
   body.compact #legend{display:none}
-  #pad .padgrp{display:flex;gap:6px;pointer-events:auto}
+  #pad .padgrp{display:flex;gap:6px;pointer-events:auto;align-items:center}
   #pad button{width:46px;height:46px;border-radius:50%;font:inherit;font-size:11px;color:var(--ink);
     background:rgba(12,18,22,.66);border:1px solid var(--line);pointer-events:auto;touch-action:none;
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
     -webkit-tap-highlight-color:transparent}
   #pad button.pressed{background:rgba(255,210,63,.45)}
-  #pad .boost{width:58px;height:58px;border-color:rgba(255,210,63,.6)}
+  #pad #btn_boost{width:58px;height:58px;font-size:12px;border-color:rgba(255,210,63,.6)}
   /* Direction arrows are drawn with CSS, not text: text glyphs get selected by
      the browser when a finger is held down on them. */
-  #pad button.dir{font-size:0;position:relative}
-  #pad button.dir::before{content:'';position:absolute;left:50%;top:50%;
-    width:0;height:0;transform:translate(-50%,-50%);
-    border-style:solid;border-color:transparent}
-  #pad button.dir-l::before{border-width:11px 12px 11px 0;border-right-color:currentColor}
-  #pad button.dir-r::before{border-width:11px 0 11px 12px;border-left-color:currentColor}
-  #pad button.dir-u::before{border-width:0 11px 12px 11px;border-bottom-color:currentColor}
-  #pad button.dir-d::before{border-width:12px 11px 0 11px;border-top-color:currentColor}
   /* Up/down (altitude) are drawn with CSS bars for the same reason. */
   #pad button.vert{font-size:0;position:relative}
   #pad button.vert::before,#pad button.vert::after{content:'';position:absolute;left:50%;top:50%;
@@ -159,7 +208,7 @@
   body.compact.show-left #hud,body.compact.show-right #sites{display:block}
   body.compact.show-left #hud,body.compact.show-right #sites{position:fixed;z-index:38}
 
-  #toast{display:none;position:fixed;left:50%;bottom:100px;transform:translateX(-50%);z-index:60;
+  #toast{display:none;position:fixed;left:50%;bottom:176px;transform:translateX(-50%);z-index:60;
     background:rgba(12,18,22,.9);border:1px solid rgba(255,210,63,.5);padding:9px 14px;border-radius:9px;
     font-size:12.5px;max-width:80vw;text-align:center}
 
@@ -179,15 +228,15 @@
   <h1>以色列 3D 聖經地形<small>ISRAEL 3D · BIBLICAL TERRAIN · FREE FLIGHT</small></h1>
   <dl>
     <dt>海拔 Altitude</dt><dd id="alt">–</dd>
-    <dt>经纬度 Lat/Lon</dt><dd id="gps">–</dd>
+    <dt>經緯度 Lat/Lon</dt><dd id="gps">–</dd>
     <dt>速度 Speed</dt><dd id="speed">–</dd>
     <dt>FPS</dt><dd id="fps">–</dd>
   </dl>
   <div id="help">
-    <b>WASD</b> / 方向键 飞行 · <b>Q/E</b> (R/F) 升降 · <b>Shift</b> 加速<br>
-    <b>拖曳鼠标</b> 转变视角 · <b>滚轮</b> 升高/降低<br>
-    <b>点击站点</b> 或右侧列表 → 飞向该处 · <b>H</b> 开关说明<br>
-    垂直放大 <b id="exag">3x</b>（地形高度为可视化而放大）
+    <b>WASD</b> / 方向鍵 飛行 · <b>Q/E</b> (R/F) 升降 · <b>Shift</b> 加速<br>
+    <b>拖曳滑鼠</b> 轉變視角 · <b>滾輪</b> 升高/降低<br>
+    <b>點擊站點</b> 或右側列表 → 飛向該處 · <b>H</b> 開關說明<br>
+    垂直放大 <b id="exag">3x</b>（地形高度為可視化而放大）
   </div>
 </div>
 
@@ -197,7 +246,7 @@
   <button id="btn_gyro" type="button">感應器：關</button>
   <button id="btn_sens" type="button">靈敏度：中</button>
   <button id="btn_cal" type="button">校準</button>
-  <button id="btn_boost" type="button">加速</button>
+  <button id="btn_boost" type="button" aria-pressed="false">加速</button>
 </div>
 
 <div id="sites" class="panel">
@@ -215,22 +264,34 @@
   </div>
 </div>
 
-<div id="north" class="panel"><div class="a">▲</div><div class="t">N 北</div></div>
+<div id="north" class="panel" role="group" aria-label="指南針">
+  <div class="rose" aria-hidden="true">
+    <span class="cn">北</span><span class="ce">東</span><span class="cs">南</span><span class="cw">西</span>
+    <div class="needle"><i></i><b></b></div>
+    <div class="mode">2D</div>
+  </div>
+  <div class="t">北 000°</div>
+</div>
 
 <button class="tab" id="tab_left" type="button">資訊</button>
 <button class="tab" id="tab_right" type="button">地點</button>
 
 <div id="pad">
-  <div class="padgrp">
-    <button type="button" class="dir dir-l" data-touch="left" aria-label="向左"></button>
-    <button type="button" class="dir dir-u" data-touch="fwd" aria-label="前進"></button>
-    <button type="button" class="dir dir-r" data-touch="right" aria-label="向右"></button>
-    <button type="button" class="dir dir-d" data-touch="back" aria-label="後退"></button>
+  <!-- ONE cross-shaped virtual D-pad on the left of the screen, like a game
+       pad.  The four arms are drawn with CSS (no text glyphs, so a held
+       finger can never select text) and the finger position inside the cross
+       decides the direction: up = forward, down = back, left / right =
+       strafe - the same semantics as the old four separate buttons. -->
+  <div id="dpad" role="group" aria-label="方向控制">
+    <span class="arm arm-u"></span>
+    <span class="arm arm-d"></span>
+    <span class="arm arm-l"></span>
+    <span class="arm arm-r"></span>
+    <span class="hub"></span>
   </div>
-  <div class="padgrp">
+  <div class="padgrp" id="padside">
     <button type="button" class="vert vert-down" data-touch="down" aria-label="下降"></button>
     <button type="button" class="vert vert-up" data-touch="up" aria-label="上升"></button>
-    <button type="button" class="boost" data-touch="boost">加速</button>
   </div>
 </div>
 <div id="toast"></div>

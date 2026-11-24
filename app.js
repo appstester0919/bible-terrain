@@ -1442,6 +1442,36 @@ function updateLabels() {
 }
 
 let cursorGeo = { lat: NaN, lon: NaN };
+// --------------------------------------------------------------- compass
+// The compass must follow the direction the camera is ACTUALLY looking at,
+// otherwise it always claims "north" no matter where the map is turned.
+// The needle points at the current bearing on a north-up dial and the label
+// spells out the cardinal point plus the bearing in degrees.
+const CARDINALS = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
+const compassNeedle = document.querySelector('#north .needle');
+const compassText = document.querySelector('#north .t');
+const compassDir = new THREE.Vector3();
+let compassLastLabel = '';
+function updateCompass() {
+  if (!compassNeedle || !compassText) return;
+  let bearing = 0;
+  if (viewMode !== '2d') {
+    // world frame: +X is east, -Z is north.
+    camera.getWorldDirection(compassDir);
+    bearing = Math.atan2(compassDir.x, -compassDir.z) * 180 / Math.PI;
+    if (bearing < 0) bearing += 360;
+    if (bearing >= 360) bearing -= 360;
+  }
+  const deg = Math.round(bearing) % 360;
+  const label = CARDINALS[Math.round(bearing / 45) % 8] + ' ' +
+                String(deg).padStart(3, '0') + '°';
+  if (label !== compassLastLabel) {
+    compassText.textContent = label;
+    compassLastLabel = label;
+  }
+  compassNeedle.style.transform = 'rotate(' + bearing.toFixed(1) + 'deg)';
+}
+
 function updateHud(dt) {
   const p = camera.position;
   if (viewMode === '2d') {
@@ -1694,14 +1724,122 @@ async function main() {
   if (canvasEl) canvasEl.addEventListener('pointerdown', () => {
     body.classList.remove('show-left', 'show-right');
   });
+  // ONE Boost control only.  The same button element is moved between the top
+  // toolbar (pointer devices) and the right-hand thumb cluster (touch
+  // devices), so "加速" can never show up twice at the same time.
   const btnBoost = document.getElementById('btn_boost');
-  if (btnBoost) btnBoost.addEventListener('click', () => {
-    state.touch.boost = !state.touch.boost;
+  const padSide = document.getElementById('padside');
+  const controlsEl = document.getElementById('controls');
+  function placeBoost() {
+    if (!btnBoost) return;
+    const host = document.body.classList.contains('touch') ? padSide : controlsEl;
+    if (host && btnBoost.parentElement !== host) host.appendChild(btnBoost);
+  }
+  const boostInPad = () => !!btnBoost && btnBoost.parentElement === padSide;
+  function boostShow(on) {
+    state.touch.boost = !!on;
+    if (!btnBoost) return;
     btnBoost.classList.toggle('on', state.touch.boost);
-    toast(state.touch.boost ? '加速：開' : '加速：關');
-  });
+    btnBoost.setAttribute('aria-pressed', state.touch.boost ? 'true' : 'false');
+  }
+  placeBoost();
+  addEventListener('resize', placeBoost);
+  if (btnBoost) {
+    // In the thumb cluster the button is hold-to-boost (the finger is busy
+    // steering with the other hand); in the toolbar it is a latching toggle.
+    btnBoost.addEventListener('pointerdown', (e) => {
+      if (!boostInPad()) return;
+      e.preventDefault();
+      try { btnBoost.setPointerCapture(e.pointerId); } catch (_) {}
+      boostShow(true);
+    });
+    const release = () => { if (boostInPad()) boostShow(false); };
+    btnBoost.addEventListener('pointerup', release);
+    btnBoost.addEventListener('pointercancel', release);
+    btnBoost.addEventListener('lostpointercapture', release);
+    btnBoost.addEventListener('click', () => {
+      if (boostInPad()) return;          // handled by press-and-hold
+      boostShow(!state.touch.boost);
+      toast(state.touch.boost ? '加速：開' : '加速：關');
+    });
+  }
 
-  // Touch control pad (mobile): sets the same axes as the keyboard.
+  // Cross-shaped virtual D-pad (left of the screen).  ONE control with four
+  // direction zones: the finger position inside the cross decides the axis,
+  // so the finger can slide between the zones like a game pad.  The zones
+  // reuse the existing forward / side flight semantics, and the axis values
+  // are added to the keyboard / gyro commands, so all three can be used
+  // together.
+  const dpad = document.getElementById('dpad');
+  if (dpad) {
+    const arms = {
+      u: dpad.querySelector('.arm-u'),
+      d: dpad.querySelector('.arm-d'),
+      l: dpad.querySelector('.arm-l'),
+      r: dpad.querySelector('.arm-r'),
+    };
+    // The visible control is a plus: a vertical arm (forward / back) and a
+    // horizontal arm (left / right) meeting in a hub.  The hit test follows
+    // exactly that shape, so what the finger touches is what the pad shows.
+    const ARM = 22;               // half width of one arm, in CSS px
+    let dpadDown = false;
+    function dpadZone(e) {
+      const r = dpad.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dy = e.clientY - (r.top + r.height / 2);
+      const onVertical = Math.abs(dx) <= ARM;
+      const onHorizontal = Math.abs(dy) <= ARM;
+      let fwd = 0, side = 0;
+      if (onVertical && onHorizontal) {
+        // inside the hub: neutral
+      } else if (onVertical) {
+        fwd = dy < 0 ? 1 : -1;                 // up = forward, down = back
+      } else if (onHorizontal) {
+        side = dx < 0 ? -1 : 1;                // left / right = strafe
+      } else {
+        // a corner of the bounding box that is not on the plus: use the
+        // nearer arm, so the pad never feels dead.
+        if (Math.abs(dy) >= Math.abs(dx)) fwd = dy < 0 ? 1 : -1;
+        else side = dx < 0 ? -1 : 1;
+      }
+      return { fwd, side };
+    }
+    function dpadApply(e) {
+      const z = dpadZone(e);
+      state.touch.fwd = z.fwd;
+      state.touch.side = z.side;
+      for (const k in arms) {
+        if (!arms[k]) continue;
+        const on = (k === 'u' && z.fwd > 0) || (k === 'd' && z.fwd < 0) ||
+                   (k === 'l' && z.side < 0) || (k === 'r' && z.side > 0);
+        arms[k].classList.toggle('on', on);
+      }
+      dpad.classList.toggle('pressed', z.fwd !== 0 || z.side !== 0);
+    }
+    function dpadRelease() {
+      dpadDown = false;
+      state.touch.fwd = 0;
+      state.touch.side = 0;
+      for (const k in arms) if (arms[k]) arms[k].classList.remove('on');
+      dpad.classList.remove('pressed');
+    }
+    dpad.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      dpadDown = true;
+      try { dpad.setPointerCapture(e.pointerId); } catch (_) {}
+      dpadApply(e);
+    });
+    dpad.addEventListener('pointermove', (e) => {
+      if (!dpadDown) return;
+      e.preventDefault();
+      dpadApply(e);
+    });
+    dpad.addEventListener('pointerup', dpadRelease);
+    dpad.addEventListener('pointercancel', dpadRelease);
+    dpad.addEventListener('lostpointercapture', dpadRelease);
+  }
+
+  // Remaining touch buttons (altitude up / down): same axes as the keyboard.
   document.querySelectorAll('[data-touch]').forEach((el) => {
     const axis = el.dataset.touch;      // fwd/back/left/right/up/down/boost
     const set = (v) => {
@@ -1743,6 +1881,7 @@ async function main() {
     updateFlight(dt);
     updateRiverScale();          // keep rivers >= RIVER_MIN_PX wide on screen
     renderer.render(scene, camera);
+    updateCompass();
     updateLabels();
     updateScaleBar();
     acc += dt; frames++;
