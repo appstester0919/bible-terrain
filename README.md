@@ -53,13 +53,66 @@ input goes through four stages:
 | **low-pass filter** | frame-rate independent, `k = 1 - exp(-dt*8)` | removes sensor jitter |
 | **rate cap** | 42 deg/s turn, 20 deg/s pitch (before the sensitivity multiplier) | a flick can never snap the camera around |
 
-The angular **rotation rate** is preferred over the absolute tilt angle when
-the device reports it, because a rate is far smoother than an angle. The
-tilt angle is the fallback.
-
 A **靈敏度 (sensitivity)** button scales the result: 低 0.6x, 中 1.0x, 高 1.5x.
 A **校準 (calibrate)** button sets the current pose as the neutral pose, so the
 phone can be held at a comfortable angle.
+
+#### Which rotation-rate channel drives which axis
+
+The attribute names of `DeviceMotionEvent.rotationRate` are **not** consistent
+across engines and versions, so they cannot be hard-coded:
+
+* the current W3C spec (6.3.2) and MDN define `alpha` = X axis (front to
+  back), `beta` = Y axis (side to side), `gamma` = Z axis (twist);
+* older engines shipped the opposite order;
+* Chrome for Android compensates the *orientation angles* for the screen
+  orientation while the *rotation rate* stays in the raw device frame, so which
+  raw channel ends up on the screen-horizontal axis depends on the device, the
+  engine and how the phone is held.
+
+The app therefore **detects** the mapping at runtime instead of assuming it.
+Every candidate channel (`alpha`, `beta`, `gamma`, `x`, `y`, `z`) is scored
+against the rate of change of the tilt angle it should correspond to, using
+two independent pieces of evidence:
+
+| evidence | what it tests | why it is needed |
+|---|---|---|
+| **magnitude match** | the channel's magnitude is within a log tolerance of the magnitude of `d(angle)/dt` (both deg/s) | a sanity check that the two are even on the same scale |
+| **coherence** | the two signals move *together* — a **centred Pearson** correlation when both signals have real variance, or a **mean match** when both are essentially constant (a steady rotation, where a correlation coefficient is undefined) | the primary criterion: it rejects an unrelated axis. A twist signal is uncorrelated with the rate of change of a tilt angle even when its magnitude happens to be similar |
+
+The correlation is **centred** (the means are subtracted), so a channel that
+shares a constant offset with the reference cannot score 1.0 by accident, and
+a constant channel has zero variance and is rejected outright.
+
+Both must pass. The winner also has to be unambiguous: a runner-up that scores
+above 74 % of the winner *with the opposite sign* means two different axes
+both look plausible, so **no channel is accepted** and the tilt path takes
+over. A runner-up with the *same* sign is the same physical axis reported
+twice, so the winner is kept. One channel can never drive both axes.
+
+The scores are averaged over a 3 s window (and at least 48 motion events and
+1.5 s of motion) so that a short-lived coincidence cannot lock in a wrong
+mapping. The sign of the score sets the polarity, so the rate path and the
+tilt path always agree on the direction.
+
+The **twist axis is never a steering source**: it has no orientation-angle
+counterpart (turning about the world vertical leaves the tilt angles
+unchanged) and it is by far the noisiest axis in a one-handed grip — which is
+exactly what made an earlier build feel twitchy.
+
+The **校準 (calibrate)** button also clears the detection, so a new grip or a
+new device is re-learned instead of keeping a stale mapping.
+
+Fallback chain, in order:
+
+| situation | what drives the camera |
+|---|---|
+| fresh rate, identified channel, non-zero | the rotation rate |
+| rate is zero, stale (> 400 ms) or unidentified | the tilt angle |
+| no sensor data at all | touch pad and keyboard only |
+
+A dead sensor stream is detected (no orientation for 1 s) and then produces no
+gyro command at all, so the touch pad keeps full control.
 
 Measured response (degrees per second of camera rotation):
 

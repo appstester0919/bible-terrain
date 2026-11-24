@@ -747,8 +747,32 @@ function buildMarkers(meta, sites) {
 // flight game: the craft always moves forward and the player steers by
 // tilting the device. Devices without a usable sensor fall back to the
 // on-screen pad and the keyboard.
-const gyro = { active: false, beta: 0, gamma: 0, rollRate: 0, pitchRate: 0,
-               accel: 0, base: null, sBeta: 0, sGamma: 0, hasRate: false, sens: 1 };
+const gyro = {
+  active: false,
+  beta: 0, gamma: 0,          // latest orientation angles (degrees)
+  sBeta: 0, sGamma: 0,        // low-pass filtered angles (degrees)
+  dBeta: 0, dGamma: 0,        // angular rate of those angles (deg/s)
+  base: null,                 // the neutral pose (set by 校準)
+  orientT: 0, orientB: 0, orientG: 0,   // previous orientation sample
+  rate: { a: null, b: null, g: null, x: null, y: null, z: null },
+                               // raw rotation-rate candidates, one per NAME
+  rateAt: 0,                  // timestamp of the last devicemotion event
+  lastOrientAt: 0,            // timestamp of the last deviceorientation event
+  motionSeen: 0,              // number of devicemotion events seen
+  accel: 0, accelRaw: 0,      // linear acceleration (m/s^2)
+  corr: {},                   // per-channel moment accumulators
+  corrT: 0,                   // time of the last window update
+  corrSpan: 0,                // seconds of motion in the current window
+  mG: 0, mGG: 0, mB: 0, mBB: 0,  // moments of the two reference signals
+  turn2S: 0, pitch2S: 0,      // score of the runner-up channel
+  turnCh: null, pitchCh: null,// the channels that drive turn / pitch
+  turnSign: 1, pitchSign: 1,  // sign that aligns a channel with its angle
+  turnCorr: 0, pitchCorr: 0,  // how strongly the channels matched (0..1)
+  sRoll: 0, sPitch: 0,        // low-pass filtered rates (deg/s)
+  sens: 1,
+  lastTurnCmd: 0, lastPitchCmd: 0,   // last steering commands given to the camera
+  mode: 'none'                // 'none' | 'tilt' | 'rate'
+};
 
 // Gyro feel, tuned the way mobile flight games do it:
 //  * a DEAD ZONE, so a resting hand does not drift;
@@ -761,10 +785,20 @@ const gyro = { active: false, beta: 0, gamma: 0, rollRate: 0, pitchRate: 0,
 const GYRO = {
   deadTilt: 5,      // degrees of tilt that are ignored
   fullTilt: 30,     // tilt that reaches full deflection
-  deadRate: 5,      // deg/s of rotation rate that is ignored
+  deadRate: 5,      // deg/s of rotation rate that are ignored
   fullRate: 90,     // deg/s of rotation rate that reaches full deflection
   maxTurn: 42,      // deg/s cap on the turn rate
-  maxPitch: 20      // deg/s cap on the pitch rate
+  maxPitch: 20,     // deg/s cap on the pitch rate
+  rateStaleMs: 400, // a rate reading older than this is treated as no data
+  corrTau: 3.0,     // seconds; the averaging window of the detection
+  corrSamples: 48,  // devicemotion events needed before a channel is trusted
+  corrSpanS: 1.5,   // seconds of motion the window must span before trusting
+  corrRefMin: 4,    // deg/s; below this the reference axis is not "moving"
+  corrMin: 0.8,     // minimum |coherence| for a channel to be accepted
+  corrMagTol: 2.3,  // log tolerance of the magnitude sanity check
+  corrSdFrac: 0.05, // min sd/rms for a signal to count as "varying"
+  corrTie: 0.74,    // a rival within this factor of the winner is ambiguous
+  orientStaleMs: 1000 // no orientation for this long -> no gyro command
 };
 const GYRO_SENS = { '低': 0.6, '中': 1.0, '高': 1.5 };
 let gyroSensName = '中';
@@ -776,8 +810,33 @@ function toast(msg) {
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.display = 'none'; }, 2600);
 }
+// Forget everything the runtime detection has learned and start again.
+// This is what the user needs after changing the way the phone is held, and
+// it is also the hook the verification harness uses between scenarios.
+function gyroResetDetection() {
+  gyro.corr = {}; gyro.corrT = 0; gyro.corrSpan = 0;
+  gyro.mG = 0; gyro.mGG = 0; gyro.mB = 0; gyro.mBB = 0;
+  gyro.turnCh = null; gyro.pitchCh = null;
+  gyro.turnSign = 1; gyro.pitchSign = 1;
+  gyro.turnCorr = 0; gyro.pitchCorr = 0;
+  gyro.turn2S = 0; gyro.pitch2S = 0;
+  gyro.rateAt = 0; gyro.motionSeen = 0;
+  gyro.lastOrientAt = 0; gyro.orientT = 0;
+  gyro.beta = 0; gyro.gamma = 0; gyro.sBeta = 0; gyro.sGamma = 0;
+  gyro.dBeta = 0; gyro.dGamma = 0;
+  gyro.sRoll = 0; gyro.sPitch = 0;
+  gyro.accel = 0; gyro.accelRaw = 0;
+  gyro.mode = 'none';
+  for (const k in gyro.rate) gyro.rate[k] = null;
+}
 function gyroCalibrate() {
   gyro.base = { beta: gyro.beta, gamma: gyro.gamma };
+  gyro.corr = {}; gyro.corrT = 0; gyro.corrSpan = 0;
+  gyro.mG = 0; gyro.mGG = 0; gyro.mB = 0; gyro.mBB = 0;
+  gyro.turnCh = null; gyro.pitchCh = null;
+  gyro.turnSign = 1; gyro.pitchSign = 1;
+  gyro.turnCorr = 0; gyro.pitchCorr = 0;
+  gyro.turn2S = 0; gyro.pitch2S = 0;
   gyro.sBeta = gyro.beta; gyro.sGamma = gyro.gamma;
   toast('已校準：以目前姿勢為水平');
 }
@@ -794,6 +853,15 @@ function enableGyro() {
   if (!DOE) { toast('此瀏覽器不支援感應器，請用下方按鈕操縱'); return; }
   const start = () => {
     gyro.active = true;
+    // The mapping between the raw sensor axes and the screen axes depends on
+    // the screen orientation, so the detection starts from scratch.
+    if (screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener('change', () => {
+        gyro.corr = {}; gyro.corrT = 0; gyro.corrSpan = 0;
+        gyro.mG = 0; gyro.mGG = 0; gyro.mB = 0; gyro.mBB = 0;
+        gyro.turnCh = null; gyro.pitchCh = null;
+      });
+    }
     addEventListener('deviceorientation', onDeviceOrient, true);
     addEventListener('devicemotion', onDeviceMotion, true);
     document.body.classList.add('gyro-on');
@@ -808,25 +876,270 @@ function enableGyro() {
     }).catch(() => toast('感應器權限被拒絕，已改用按鈕操縱'));
   } else start();
 }
+function wrapDeg(d) {
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
 function onDeviceOrient(e) {
-  if (e.beta === null || e.gamma === null) return;
-  gyro.beta = e.beta; gyro.gamma = e.gamma;
+  const b = e.beta, g = e.gamma;
+  if (b === null && g === null) return;
+  const t = (typeof e.timeStamp === 'number' && e.timeStamp > 0) ? e.timeStamp : performance.now();
+  const hadPrev = gyro.orientT > 0;
+  const prevB = gyro.orientB, prevG = gyro.orientG;
+  if (typeof b === 'number' && isFinite(b)) gyro.beta = b;
+  if (typeof g === 'number' && isFinite(g)) gyro.gamma = g;
+  gyro.lastOrientAt = performance.now();
+  // The rate of change of the orientation angles is the reference signal the
+  // rotation-rate channels are compared against.
+  if (hadPrev) {
+    const dt = Math.max(1e-3, Math.min(0.25, (t - gyro.orientT) / 1000));
+    let dB = 0, dG = 0;
+    if (typeof b === 'number' && isFinite(b)) dB = wrapDeg(b - prevB) / dt;
+    if (typeof g === 'number' && isFinite(g)) dG = wrapDeg(g - prevG) / dt;
+    const k = 1 - Math.exp(-dt * 12);
+    gyro.dBeta += (dB - gyro.dBeta) * k;
+    gyro.dGamma += (dG - gyro.dGamma) * k;
+  }
+  gyro.orientT = t; gyro.orientB = gyro.beta; gyro.orientG = gyro.gamma;
   if (!gyro.base) gyroCalibrate();
 }
+
+// Detect which raw rotation-rate channel carries the roll (side to side)
+// rate and which one carries the pitch (front to back) rate.
+//
+// The physical relation that makes this possible is simple: rotating the
+// device about an axis at w rad/s changes the matching orientation angle at
+// the same rate.  The correct channel therefore has the same magnitude as
+// the derivative of that angle, while the other axes stay near zero.
+//
+// The score is a COHERENCE (centred Pearson correlation) between the rate
+// channel and the rate of change of the matching orientation angle, with a
+// magnitude match as a sanity check.  Both parts are needed: a magnitude
+// match alone cannot tell two axes apart, and an UNCENTRED correlation
+// would be fooled by a channel with a constant bias - the twist axis is
+// noisy and often biased, and a constant signal correlates "perfectly" with
+// another constant signal.
+//
+// The polarity comes from the same window: the sign of the mean product says
+// whether the channel moves with or against the angle, so the rate path and
+// the tilt path always agree on the direction.
+// Detect which raw rotation-rate channel carries the roll (side to side)
+// rate and which one carries the pitch (front to back) rate.
+//
+// Why a runtime detection at all: the attribute NAMES of
+// DeviceMotionEventRotationRate are not consistent across engines and
+// versions.  The current W3C spec (6.3.2) and MDN define alpha = X axis
+// (front to back), beta = Y axis (side to side), gamma = Z axis (twist),
+// while older engines shipped the opposite order, and Chrome for Android may
+// compensate the orientation angles for the screen orientation while the
+// rotation rate stays in the raw device frame.  A hard-coded alias is
+// therefore wrong on some device.
+//
+// The detector correlates every candidate channel with the rate of change of
+// the orientation angle that the tilt path already uses: the channel that
+// carries the roll rate must track d(gamma)/dt, the pitch channel must track
+// d(beta)/dt.
+//
+// The correlation is a Pearson coefficient computed from exponential moving
+// averages of the raw moments.  Pearson is used rather than a plain
+// normalised cross-correlation because it is immune to a constant offset: a
+// channel with a constant bias (the twist axis is noisy and often biased)
+// has no variance and therefore cannot correlate, while the naive
+// E[xy]/sqrt(E[x^2]E[y^2]) form scores such a channel as a perfect match.
+//
+// The sign of the coefficient gives the polarity, so the rate path and the
+// tilt path always agree on the direction as well as on the axis.
+//
+// The twist axis (Z) is deliberately NOT a steering source.  It has no
+// orientation-angle counterpart to correlate with - turning about the world
+// vertical leaves the tilt angles unchanged - and it is by far the noisiest
+// axis in a one-handed grip, which is exactly what made the old build feel
+// twitchy.  A twist therefore never locks the turn channel.
+// Detect which raw rotation-rate channel carries the roll (side to side)
+// rate and which one carries the pitch (front to back) rate.
+//
+// Why a runtime detection at all: the attribute NAMES of
+// DeviceMotionEventRotationRate are not consistent across engines and
+// versions.  The current W3C spec (6.3.2) and MDN define alpha = X axis
+// (front to back), beta = Y axis (side to side), gamma = Z axis (twist),
+// while older engines shipped the opposite order, and Chrome for Android
+// compensates the orientation angles for the screen orientation while the
+// rotation rate stays in the raw device frame.  Which raw channel ends up
+// on the screen-horizontal axis therefore depends on the device, the engine
+// and the way the phone is held, so a hard-coded alias is wrong somewhere.
+//
+// Two independent pieces of evidence are combined per channel:
+//
+//   MAGNITUDE MATCH - the correct channel has the same magnitude as the
+//   rate of change of the orientation angle it belongs to (both are deg/s).
+//   This is the axis test, and it keeps working when the signals are
+//   perfectly constant, where a correlation coefficient is undefined.
+//
+//   COHERENCE - the two signals must actually move together.  It is a
+//   Pearson coefficient when the channel has enough variance and a centred
+//   cosine similarity otherwise.  This is what rejects an unrelated axis: a
+//   twist signal is uncorrelated with the rate of change of a tilt angle,
+//   so its coherence stays near zero even when its magnitude happens to be
+//   in the same range.
+//
+// Magnitude alone would accept an unrelated axis; correlation alone is
+// undefined for a steady rotation.  Requiring both makes the detection work
+// for steady rotation as well as for noisy live motion.
+//
+// The sign of the score gives the polarity, so the rate path and the tilt
+// path always agree on the direction as well as on the axis.
+//
+// The twist axis (Z) is deliberately NOT a steering source.  It has no
+// orientation-angle counterpart to correlate with - turning about the world
+// vertical leaves the tilt angles unchanged - and it is by far the noisiest
+// axis in a one-handed grip, which is exactly what made the old build feel
+// twitchy.  A twist therefore never locks the turn channel.
+function updateRateCorrelation(t) {
+  // The averaging window has to use the SAME timeline as the reference
+  // signal, which is derived from the event timestamps.  Devices deliver
+  // sensor events in bursts, and a wall-clock window would then weight the
+  // burst differently from the reference and could not be compared with it.
+  const now = (typeof t === 'number' && t > 0) ? t : performance.now();
+  const dt = gyro.corrT > 0 ? Math.max(0.005, Math.min(0.5, (now - gyro.corrT) / 1000)) : 0.05;
+  gyro.corrT = now;
+  const a = 1 - Math.exp(-dt / GYRO.corrTau);
+  gyro.corrSpan += dt;
+  const refG = gyro.dGamma, refB = gyro.dBeta;
+  // moments of the two reference signals
+  gyro.mG += (refG - gyro.mG) * a;
+  gyro.mGG += (refG * refG - gyro.mGG) * a;
+  gyro.mB += (refB - gyro.mB) * a;
+  gyro.mBB += (refB * refB - gyro.mBB) * a;
+  const rmsG = Math.sqrt(Math.max(0, gyro.mGG));
+  const rmsB = Math.sqrt(Math.max(0, gyro.mBB));
+  const sdG = Math.sqrt(Math.max(0, gyro.mGG - gyro.mG * gyro.mG));
+  const sdB = Math.sqrt(Math.max(0, gyro.mBB - gyro.mB * gyro.mB));
+
+  const turnCands = [], pitchCands = [];
+  for (const key of ['a', 'b', 'g', 'x', 'y', 'z']) {
+    const v = gyro.rate[key];
+    if (typeof v !== 'number' || !isFinite(v)) continue;
+    let st = gyro.corr[key];
+    if (!st) st = gyro.corr[key] = { m: 0, mm: 0, xyG: 0, xyB: 0 };
+    st.m += (v - st.m) * a;
+    st.mm += (v * v - st.mm) * a;
+    st.xyG += (v * refG - st.xyG) * a;
+    st.xyB += (v * refB - st.xyB) * a;
+
+    // Score this channel against one reference signal.
+    //
+    // COHERENCE is the primary criterion: the correct channel is the one
+    // that actually moves together with the rate of change of the tilt
+    // angle.  A twist channel is uncorrelated with it, so it fails the
+    // absolute threshold no matter how similar its magnitude is.
+    //
+    // MAGNITUDE is only a sanity check that the two are even on the same
+    // scale (both are deg/s).  It cannot decide the axis on its own: an
+    // unrelated axis can easily have a magnitude in the same range.
+    const evalOne = (rmsRef, mRef, m2Ref, xy) => {
+      if (rmsRef < GYRO.corrRefMin) return { s: 0, sign: 1 };
+      const rmsCh = Math.sqrt(Math.max(0, st.mm));
+      if (rmsCh < 1e-6) return { s: 0, sign: 1 };
+      const lr = Math.log(rmsCh / rmsRef);
+      if (Math.abs(lr) > GYRO.corrMagTol) return { s: 0, sign: 1 };
+      const sdCh = Math.sqrt(Math.max(0, st.mm - st.m * st.m));
+      const sdRef = Math.sqrt(Math.max(0, m2Ref - mRef * mRef));
+      // A signal counts as varying when its standard deviation is a real
+      // fraction of its magnitude; otherwise it is essentially a constant
+      // and a centred correlation would be meaningless.
+      const varies = sdCh > GYRO.corrSdFrac * rmsCh && sdRef > GYRO.corrSdFrac * rmsRef;
+      const steady = sdCh <= 0.2 * rmsCh && sdRef <= 0.2 * rmsRef;
+      let coh = 0;
+      if (varies) {
+        // Centred Pearson correlation between the channel and the reference.
+        coh = (xy - st.m * mRef) / (sdCh * sdRef);
+      } else if (steady) {
+        // Both signals are essentially constant - a steady rotation.  A
+        // centred correlation is undefined here, so the CONSTANT parts are
+        // matched instead: the mean of the channel against the mean of the
+        // reference.  The mean is used on purpose - a noisy channel (the
+        // twist axis) has a mean near zero and cannot fake a steady match,
+        // whereas an uncentred magnitude comparison would happily do so.
+        const mv = Math.abs(st.m), mr = Math.abs(mRef);
+        if (mv < 1e-6 || mr < 1e-6) return { s: 0, sign: 1 };
+        coh = ((st.m * mRef) >= 0 ? 1 : -1) * (Math.min(mv, mr) / Math.max(mv, mr));
+      } else {
+        return { s: 0, sign: 1 };
+      }
+      if (!isFinite(coh)) coh = 0;
+      return { s: Math.abs(coh), sign: coh >= 0 ? 1 : -1 };
+    };
+
+    const g = evalOne(rmsG, gyro.mG, gyro.mGG, st.xyG);
+    if (g.s > 0) turnCands.push({ key: key, s: g.s, sign: g.sign });
+    const pc = evalOne(rmsB, gyro.mB, gyro.mBB, st.xyB);
+    if (pc.s > 0) pitchCands.push({ key: key, s: pc.s, sign: pc.sign });
+  }
+  // Rank the candidates; the winner is the most coherent channel.
+  const rank = (list) => {
+    list.sort((u, v) => v.s - u.s);
+    return { best: list[0] || null, second: list[1] || null };
+  };
+  const rk = rank(turnCands);
+  const rp = rank(pitchCands);
+  gyro.turn2S = rk.second ? rk.second.s : 0;
+  gyro.pitch2S = rp.second ? rp.second.s : 0;
+  if (gyro.motionSeen < GYRO.corrSamples) return;
+  if (gyro.corrSpan < GYRO.corrSpanS) return;
+  // Accept a channel only when it is clearly coherent with the reference.
+  // A rival that is almost as coherent AND has the opposite sign means the
+  // mapping is ambiguous (two axes are both candidates) - then no channel is
+  // accepted and the tilt path takes over, which is the safe fallback.  A
+  // rival with the SAME sign is the same physical axis reported twice, so the
+  // winner is accepted.
+  const accept = (best, second) => {
+    if (!best) return null;
+    if (best.s < GYRO.corrMin) return null;
+    // A rival that is almost as coherent AND has the opposite sign means the
+    // mapping is ambiguous (two different axes are both candidates).  Then
+    // no channel is accepted and the tilt path takes over, which is the safe
+    // fallback.  A rival with the SAME sign is the same physical axis
+    // reported twice, so the winner is accepted.
+    if (second && second.s > best.s * GYRO.corrTie && second.sign !== best.sign) return null;
+    return best;
+  };
+  let accTurn = accept(rk.best, rk.second);
+  let accPitch = accept(rp.best, rp.second);
+  // One channel cannot drive both axes: the stronger match keeps its axis.
+  if (accTurn && accPitch && accTurn.key === accPitch.key) {
+    if (accTurn.s >= accPitch.s) accPitch = null; else accTurn = null;
+  }
+  gyro.turnCh = accTurn ? accTurn.key : null;
+  gyro.pitchCh = accPitch ? accPitch.key : null;
+  gyro.turnSign = accTurn ? accTurn.sign : 1;
+  gyro.pitchSign = accPitch ? accPitch.sign : 1;
+  gyro.turnCorr = accTurn ? accTurn.s : 0;
+  gyro.pitchCorr = accPitch ? accPitch.s : 0;
+}
+
 function onDeviceMotion(e) {
-  // rotationRate is the angular velocity (3 more axes on top of the 3
-  // orientation angles): alpha/beta/gamma, or the older x/y/z spelling.
   const rr = e.rotationRate;
   if (rr) {
-    const z = (typeof rr.z === 'number') ? rr.z
-            : (typeof rr.alpha === 'number') ? rr.alpha : 0;
-    const x = (typeof rr.x === 'number') ? rr.x
-            : (typeof rr.beta === 'number') ? rr.beta : 0;
-    gyro.rollRate = z; gyro.pitchRate = x;
-    gyro.hasRate = true;
+    const set = (k, v) => { if (typeof v === 'number' && isFinite(v)) gyro.rate[k] = v; };
+    set('a', rr.alpha); set('b', rr.beta); set('g', rr.gamma);
+    set('x', rr.x); set('y', rr.y); set('z', rr.z);
+    gyro.rateAt = performance.now();
+    gyro.motionSeen++;
+    const mt = (typeof e.timeStamp === 'number' && e.timeStamp > 0) ? e.timeStamp : performance.now();
+    updateRateCorrelation(mt);
   }
-  const a = e.accelerationIncludingGravity || e.acceleration;
-  if (a) gyro.accel = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+  // Linear acceleration (gravity removed) is what "shaking" actually shows
+  // up in; accelerationIncludingGravity is ~9.81 m/s^2 at rest in every
+  // orientation, so its magnitude is useless as a motion signal.
+  const a = e.acceleration;
+  if (a) gyro.accelRaw = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+  else {
+    const g2 = e.accelerationIncludingGravity;
+    if (g2) gyro.accelRaw = Math.abs(Math.hypot(g2.x || 0, g2.y || 0, g2.z || 0) - 9.81);
+  }
+  const kk = 1 - Math.exp(-0.05);
+  gyro.accel += (gyro.accelRaw - gyro.accel) * kk;
 }
 
 // Turn a raw input value into a normalised -1..1 command with a dead zone at
@@ -836,6 +1149,58 @@ function deadZoneCurve(v, dead, full) {
   if (m <= dead) return 0;
   const t = Math.min(1, (m - dead) / Math.max(1e-6, full - dead));
   return s * t * t;
+}
+
+// Resolve the steering commands for this frame.  Returns null when there is
+// no usable sensor data at all, so that the touch pad and the keyboard stay
+// in charge of the camera.
+function gyroSteer(dt) {
+  if (!gyro.active) return null;
+  // No orientation for a while means the sensor stream died: produce no gyro
+  // command at all so the touch pad and the keyboard keep full control.
+  if (gyro.lastOrientAt > 0 && (performance.now() - gyro.lastOrientAt) > GYRO.orientStaleMs) {
+    gyro.mode = 'none';
+    return null;
+  }
+  // low-pass filter the raw angles (frame-rate independent)
+  const k = 1 - Math.exp(-dt * 8);
+  gyro.sBeta += (gyro.beta - gyro.sBeta) * k;
+  gyro.sGamma += (gyro.gamma - gyro.sGamma) * k;
+  const b = gyro.base || { beta: 0, gamma: 0 };
+  let dGamma = wrapDeg(gyro.sGamma - b.gamma);
+  let dBeta = wrapDeg(gyro.sBeta - b.beta);
+
+  // A rotation-rate reading is only used when it is fresh, when the channel
+  // has been identified at runtime, and when it is actually a non-zero
+  // angular velocity.  Otherwise the tilt angle drives the axis.
+  const fresh = (performance.now() - gyro.rateAt) <= GYRO.rateStaleMs;
+  const kk = 1 - Math.exp(-dt * 16);
+  let turnCmd = null, pitchCmd = null;
+  let usedRate = false;
+
+  if (fresh && gyro.turnCh) {
+    const rv = gyro.rate[gyro.turnCh];
+    if (typeof rv === 'number' && isFinite(rv) && Math.abs(rv) > GYRO.deadRate) {
+      gyro.sRoll += (gyro.turnSign * rv - gyro.sRoll) * kk;
+      turnCmd = deadZoneCurve(gyro.sRoll, GYRO.deadRate, GYRO.fullRate);
+      usedRate = true;
+    }
+  }
+  if (turnCmd === null) turnCmd = deadZoneCurve(dGamma, GYRO.deadTilt, GYRO.fullTilt);
+
+  if (fresh && gyro.pitchCh) {
+    const pv = gyro.rate[gyro.pitchCh];
+    if (typeof pv === 'number' && isFinite(pv) && Math.abs(pv) > GYRO.deadRate) {
+      gyro.sPitch += (gyro.pitchSign * pv - gyro.sPitch) * kk;
+      pitchCmd = deadZoneCurve(gyro.sPitch, GYRO.deadRate, GYRO.fullRate);
+      usedRate = true;
+    }
+  }
+  if (pitchCmd === null) pitchCmd = deadZoneCurve(dBeta, GYRO.deadTilt, GYRO.fullTilt);
+
+  gyro.mode = usedRate ? 'rate' : (gyro.lastOrientAt > 0 ? 'tilt' : 'none');
+  gyro.lastTurnCmd = turnCmd; gyro.lastPitchCmd = pitchCmd;
+  return { turnCmd, pitchCmd };
 }
 
 // ------------------------------------------------------------- flight controls
@@ -866,33 +1231,15 @@ function updateFlight(dt) {
   if (keys['q'] || keys['f']) up -= 1;
   fwd += state.touch.fwd; side += state.touch.side; up += state.touch.up;
 
-  // Gyro steering. Tilt (or the rotation rate when available) is converted to
-  // a -1..1 command with a dead zone and a quadratic ramp, then converted to
-  // a capped rate in degrees per second. This is what stops the camera from
-  // snapping around when the phone is moved slightly.
-  if (gyro.active) {
-    // low-pass filter the raw angles (frame-rate independent)
-    const k = 1 - Math.exp(-dt * 8);
-    gyro.sBeta += (gyro.beta - gyro.sBeta) * k;
-    gyro.sGamma += (gyro.gamma - gyro.sGamma) * k;
-    const b = gyro.base || { beta: 0, gamma: 0 };
-    let dGamma = gyro.sGamma - b.gamma;
-    let dBeta = gyro.sBeta - b.beta;
-    // keep the tilt difference in the meaningful range
-    if (dGamma > 180) dGamma -= 360; else if (dGamma < -180) dGamma += 360;
-
-    // Steering source: the angular rate is far smoother than absolute tilt,
-    // so use it when the device reports it; otherwise fall back to the tilt.
-    let turnCmd;
-    if (gyro.hasRate && Math.abs(gyro.rollRate) > GYRO.deadRate) {
-      turnCmd = deadZoneCurve(-gyro.rollRate, GYRO.deadRate, GYRO.fullRate);
-    } else {
-      turnCmd = deadZoneCurve(dGamma, GYRO.deadTilt, GYRO.fullTilt);
-    }
-    const pitchCmd = deadZoneCurve(dBeta, GYRO.deadTilt, GYRO.fullTilt);
-
-    const turnRate = THREE.MathUtils.degToRad(GYRO.maxTurn * gyro.sens) * turnCmd;
-    const pitchRate = THREE.MathUtils.degToRad(GYRO.maxPitch * gyro.sens) * pitchCmd;
+  // Gyro steering. The rotation rate is used when the device reports a fresh
+  // and reliable one, otherwise the absolute tilt angle is used; both are
+  // converted to a -1..1 command with a dead zone and a quadratic ramp, then
+  // to a capped rate in degrees per second. This is what stops the camera
+  // from snapping around when the phone is moved slightly.
+  const steer = gyroSteer(dt);
+  if (steer) {
+    const turnRate = THREE.MathUtils.degToRad(GYRO.maxTurn * gyro.sens) * steer.turnCmd;
+    const pitchRate = THREE.MathUtils.degToRad(GYRO.maxPitch * gyro.sens) * steer.pitchCmd;
     yaw += turnRate * dt;
     pitch = THREE.MathUtils.clamp(pitch + pitchRate * dt, -MAXPITCH, MAXPITCH);
     if (fwd === 0) fwd = 1;                    // arcade flight: always moving
@@ -1423,11 +1770,24 @@ async function main() {
     elevAtWorld: (x, z) => elevAt(state.meta, elev_full, elevW, elevH, x, z),
     toggleHK: (on) => toggleHKOverlay(on),
     viewMode: () => viewMode,
+    gyroReset: () => { gyroResetDetection(); return true; },
     gyroReport: () => ({
-      active: gyro.active, beta: gyro.beta, gamma: gyro.gamma,
-      rollRate: gyro.rollRate, pitchRate: gyro.pitchRate,
+      active: gyro.active, mode: gyro.mode,
+      beta: gyro.beta, gamma: gyro.gamma,
+      dBeta: gyro.dBeta, dGamma: gyro.dGamma,
+      turnCh: gyro.turnCh, pitchCh: gyro.pitchCh,
+      turnSign: gyro.turnSign, pitchSign: gyro.pitchSign,
+      turnCorr: gyro.turnCorr, pitchCorr: gyro.pitchCorr,
+      turn2Score: gyro.turn2S, pitch2Score: gyro.pitch2S,
+      refSdG: Math.sqrt(Math.max(0, gyro.mGG - gyro.mG * gyro.mG)),
+      refSdB: Math.sqrt(Math.max(0, gyro.mBB - gyro.mB * gyro.mB)),
+      rateFresh: (performance.now() - gyro.rateAt) <= GYRO.rateStaleMs,
+      rate: { ...gyro.rate },
+      sRoll: gyro.sRoll, sPitch: gyro.sPitch,
       accel: gyro.accel, base: gyro.base,
-      sens: gyro.sens, sensName: gyroSensName, hasRate: gyro.hasRate,
+      sens: gyro.sens, sensName: gyroSensName,
+      motionSeen: gyro.motionSeen,
+      lastTurnCmd: gyro.lastTurnCmd, lastPitchCmd: gyro.lastPitchCmd,
     }),
     hkReport: () => ({
       visible: !!(state.hkOverlay && state.hkOverlay.visible),
