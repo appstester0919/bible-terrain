@@ -12,3 +12,6 @@ data/diag3_build.log
 # Local scratch
 .DS_Store
 node_modules/
+
+# ws module auto-installed by tools/verify/harness_lib.js on a fresh clone
+tools/verify/.verify-deps/
