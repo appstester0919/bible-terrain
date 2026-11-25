@@ -47,7 +47,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 # ---------------------------------------------------------------- paths
-PROJECT = "/home/appstester0919/work/israel3d"
+PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # repo root
 SRC_GEOJSON = os.path.join(PROJECT, "data", "cache", "hk_districts.geojson")
 OUT_PNG = os.path.join(PROJECT, "data", "hk_overlay.png")
 OUT_META = os.path.join(PROJECT, "data", "hk_overlay_meta.json")

@@ -25,7 +25,7 @@ set -u
 # response. Public Overpass mirrors are routinely 502/504/timeout; a rebuild
 # that does not need fresh river data must not burn 15 minutes waiting.
 export ISRAEL3D_OFFLINE="${ISRAEL3D_OFFLINE:-1}"
-WORK=/home/appstester0919/work/israel3d
+WORK="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # repo root
 LOG="$WORK/data/water_build.log"
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # this repo's tools/ dir
 

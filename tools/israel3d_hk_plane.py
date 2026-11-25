@@ -40,7 +40,7 @@ import os
 
 from PIL import Image, ImageDraw
 
-WORK = "/home/appstester0919/work/israel3d"
+WORK = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # repo root
 DATA = os.path.join(WORK, "data")
 CACHE = os.path.join(DATA, "cache")
 
