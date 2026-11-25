@@ -30,12 +30,13 @@ Replaces v11. Three substantive corrections:
 Outputs: data/water.png (RG=16-bit level, A=255 mask), data/water_meta.json,
 data/water_preview.png, data/rivers.json, data/coastline.json
 """
-import json, math, os, sys, time, urllib.parse, urllib.request
+import json
+import os, math, os, sys, time, urllib.parse, urllib.request
 from collections import deque
 import numpy as np
 from PIL import Image, ImageDraw
 
-DATA = "/home/appstester0919/work/israel3d/data"
+DATA = os.environ.get("ISRAEL3D_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
 CACHE = os.path.join(DATA, "cache")
 os.makedirs(CACHE, exist_ok=True)
 LOGF = open(os.path.join(DATA, "water_build_log.txt"), "w", encoding="utf-8")
@@ -53,7 +54,15 @@ W, H = geo["width_px"], geo["height_px"]
 LON0, LON1 = geo["lon_min"], geo["lon_max"]
 MY_T, MY_B = geo["merc_y_top"], geo["merc_y_bot"]
 MPP = geo["meters_per_pixel"]
-BBOX = (31.00, 34.40, 33.20, 36.30)
+# BBOX used to be hardcoded to (31.00, 34.40, 33.20, 36.30). That north limit of
+# 33.20 sat BELOW the DEM's top edge once Mount Hermon was added (the grid now
+# reaches lat 33.7243), so the Natural Earth coastlines and rivers were clipped
+# short of the terrain they were being painted onto - the new northern strip had
+# bare sea-floor with no water surface drawn on it. The bbox is now derived from
+# geo.json, which is itself derived from data/tiles/, so the vector extent can no
+# longer drift away from the DEM extent.
+BBOX = (geo["lat_bottom"], geo["lon_min"], geo["lat_top"], geo["lon_max"])
+log("  vector bbox from geo.json: s %.4f w %.4f n %.4f e %.4f" % BBOX)
 
 def merc_y(lat):
     return math.log(math.tan(math.radians(lat)) + 1 / math.cos(math.radians(lat)))
@@ -940,7 +949,14 @@ level_full = np.zeros((H, W), dtype=np.float64)
 for rec in lake_records:
     level_full[rec["mask"]] = rec["level_m"]
 level_full[ocean] = 0.0
-LO, HI = -1600.0, 100.0
+# LO/HI is the 16-bit level range used to encode water.png. It was hardcoded to
+# -1600 m, which was fine while the DEM bottomed out at -1552 m but silently
+# CLIPPED the Dead Sea floor once the grid reached -1985 m (a level below LO
+# encodes to 0 and decodes back as LO). The range is now derived from the DEM
+# actually being painted, rounded outward to whole metres so it stays stable.
+LO = math.floor(min(dem.min(), -500.0) / 100.0) * 100.0
+HI = 100.0
+log("  water level encode range: LO %.1f HI %.1f (dem min %.1f)" % (LO, HI, dem.min()))
 # Work on the FULL (H, W) grid. Indexing with a boolean mask flattens the array to
 # 1-D, which then breaks np.dstack([R, G, A]) — the R/G arrays came back with one
 # row and the A array with 1792 ("all the input array dimensions ... must match").
@@ -1199,6 +1215,8 @@ meta = {"width": W, "height": H, "min": LO, "max": HI,
         "meters_per_pixel": MPP,
         "meters_per_pixel_true_ground_at_midlat": MPP*float(np.cos(np.radians((LAT_ROW[0]+LAT_ROW[-1])/2))),
         "level_note": "Dead Sea -401 m, Sea of Galilee -209 m, Mediterranean 0 m",
+        "bbox": {"lat_min": geo["lat_bottom"], "lat_max": geo["lat_top"],
+                 "lon_min": geo["lon_min"], "lon_max": geo["lon_max"]},
         "bodies": bodies,
         "rivers": {"source": river_source, "count": len(rivers),
                    "total_km": round(sum(r["length_m"] for r in rivers)/1000.0, 1)}}

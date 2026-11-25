@@ -16,7 +16,10 @@
 # water_vector.json, so carving before the holes are back would carve the
 # towns down to the lake floor.
 #
-# Usage: bash ~/.hermes/scripts/israel3d_build_water.sh
+# Usage: bash tools/israel3d_build_water.sh
+#
+# NOTE: the canonical chain for the whole map is tools/israel3d_build.sh;
+# this wrapper rebuilds only the water half of it.
 set -u
 # ISRAEL3D_OFFLINE=1 -> skip the Overpass network calls and use the cached
 # response. Public Overpass mirrors are routinely 502/504/timeout; a rebuild
@@ -24,7 +27,7 @@ set -u
 export ISRAEL3D_OFFLINE="${ISRAEL3D_OFFLINE:-1}"
 WORK=/home/appstester0919/work/israel3d
 LOG="$WORK/data/water_build.log"
-S=/home/appstester0919/.hermes/scripts
+S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # this repo's tools/ dir
 
 PY=""
 for cand in /usr/bin/python3 \

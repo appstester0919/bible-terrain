@@ -26,9 +26,10 @@ Usage:
     python3 israel3d_site_holes.py            # rewrite data/water_vector.json
     python3 israel3d_site_holes.py --check    # verify only, no write
 """
-import json, math, os, sys
+import json
+import os, math, os, sys
 
-DATA = '/home/appstester0919/work/israel3d/data'
+DATA = os.environ.get("ISRAEL3D_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
 SEGMENTS = 48                      # 48 segments -> 49 points incl. closing point
 M_PER_DEG_LAT = 111320.0
 

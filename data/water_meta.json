@@ -1,47 +1,43 @@
 {
- "width": 1280,
- "height": 1792,
- "min": -1600.0,
- "max": 100.0,
- "meters_per_pixel": 152.87405657196044,
- "meters_per_pixel_true_ground_at_midlat": 129.50887546683146,
- "level_note": "Dead Sea -401 m, Sea of Galilee -209 m, Mediterranean 0 m",
- "bodies": [
-  {
-   "name": "Mediterranean Sea",
-   "level_m": 0.0,
-   "area_km2": 7594.8,
-   "source": "Natural Earth 10m ocean polygon clipped to the map bbox. No independent published area reference for the clipped frame, so no +/-5% claim is made."
+  "width": 1280,
+  "height": 2304,
+  "min": -2000.0,
+  "max": 100.0,
+  "meters_per_pixel": 152.87405657196044,
+  "meters_per_pixel_true_ground_at_midlat": 129.09123736208977,
+  "level_note": "Dead Sea -401 m, Sea of Galilee -209 m, Mediterranean 0 m",
+  "bbox": {
+    "lat_min": 31.052933985705145,
+    "lat_max": 33.7243396617476,
+    "lon_min": 34.453125,
+    "lon_max": 36.2109375
   },
-  {
-   "name": "Dead Sea",
-   "level_m": -401.0,
-   "area_km2": 655.9,
-   "expected_km2": 678.0,
-   "error_pct": -3.3,
-   "source": "Natural Earth 10m north-pool outline at -401 m (south basin excluded: only 6.4% of it lies below -401 m). Measured on the shipped vector, site holes subtracted."
-  },
-  {
-   "name": "Sea of Galilee",
-   "level_m": -209.0,
-   "area_km2": 158.3,
-   "expected_km2": 166.0,
-   "error_pct": -4.7,
-   "source": "Natural Earth 10m outline (union) at -209 m, minus the 250 m Capernaum and Tiberias site holes so the lakeside towns stand on dry ground. Measured on the shipped vector."
-  }
- ],
- "rivers": {
-  "source": "OSM Overpass waterway=river/stream (cached response; offline rebuild)",
-  "count": 159,
-  "total_km": 2327.8
- },
- "rebuild": {
-  "wrapper": "~/.hermes/scripts/israel3d_build_water.sh",
-  "stages": [
-   "israel3d_water_v12.py",
-   "israel3d_site_holes.py (+ --check idempotence)",
-   "israel3d_carve_water.py"
+  "bodies": [
+    {
+      "name": "Mediterranean Sea",
+      "level_m": 0.0,
+      "area_km2": 11407.0
+    },
+    {
+      "name": "Dead Sea",
+      "level_m": -401.0,
+      "area_km2": 655.9,
+      "expected_km2": 678.0,
+      "error_pct": -3.3,
+      "source": "DEM contour at -401 m, trimmed by the Natural Earth outline"
+    },
+    {
+      "name": "Sea of Galilee",
+      "level_m": -209.0,
+      "area_km2": 158.6,
+      "expected_km2": 166.0,
+      "error_pct": -4.5,
+      "source": "Natural Earth outline (union) - matches the -209 m shoreline"
+    }
   ],
-  "offline": "ISRAEL3D_OFFLINE=1 by default - Overpass mirrors are routinely 502/504; the cached response is used instead of waiting ~15 min."
- }
+  "rivers": {
+    "source": "OSM Overpass waterway=river/stream",
+    "count": 159,
+    "total_km": 2295.3
+  }
 }

@@ -1,208 +1,211 @@
 {
- "count": 16,
- "sites": [
-  {
-   "id": "jerusalem",
-   "name": "耶路撒冷",
-   "en": "Jerusalem",
-   "he": "ירושלים",
-   "lat": 31.7683,
-   "lon": 35.2137,
-   "note": "聖殿與大衛城",
-   "lat_raw": 31.7683,
-   "lon_raw": 35.2137
-  },
-  {
-   "id": "telaviv",
-   "name": "特拉維夫",
-   "en": "Tel Aviv",
-   "he": "תל אביב",
-   "lat": 32.0809,
-   "lon": 34.7806,
-   "note": "地中海海岸",
-   "lat_raw": 32.0809,
-   "lon_raw": 34.7806
-  },
-  {
-   "id": "haifa",
-   "name": "海法",
-   "en": "Haifa",
-   "he": "חיפה",
-   "lat": 32.7955,
-   "lon": 34.9888,
-   "note": "迦密山",
-   "lat_raw": 32.7955,
-   "lon_raw": 34.9888
-  },
-  {
-   "id": "nazareth",
-   "name": "拿撒勒",
-   "en": "Nazareth",
-   "he": "נצרת",
-   "lat": 32.702,
-   "lon": 35.2973,
-   "note": "耶穌成長之地",
-   "lat_raw": 32.702,
-   "lon_raw": 35.2973
-  },
-  {
-   "id": "capernaum",
-   "name": "迦百農",
-   "en": "Capernaum",
-   "he": "כפר נחום",
-   "lat": 32.88083,
-   "lon": 35.57553,
-   "note": "加利利海邊",
-   "lat_raw": 32.88083,
-   "lon_raw": 35.57553,
-   "ref_elev_m": -207,
-   "ref_source": "Wikipedia: Capernaum -205 to -207 m; the town stands above the modern high-water line, the harbour quarter lies below it.",
-   "pad": true,
-   "pad_radius_px": 3,
-   "coord_source": "Wikipedia: 32.88083 N, 35.57553 E (via mapcarta/Wikipedia infobox); harbour quarter ~200 m SE of the town centre",
-   "water_hole": {
-    "radius_m": 250,
-    "body": "Sea of Galilee"
-   }
-  },
-  {
-   "id": "bethlehem",
-   "name": "伯利恒",
-   "en": "Bethlehem",
-   "he": "بيت لحم",
-   "lat": 31.7054,
-   "lon": 35.2024,
-   "note": "耶穌降生之地",
-   "lat_raw": 31.7054,
-   "lon_raw": 35.2024
-  },
-  {
-   "id": "jericho",
-   "name": "耶利哥",
-   "en": "Jericho",
-   "he": "אריحا",
-   "lat": 31.8618,
-   "lon": 35.4533,
-   "note": "進入迦南",
-   "lat_raw": 31.8618,
-   "lon_raw": 35.4533
-  },
-  {
-   "id": "hebron",
-   "name": "希伯崙",
-   "en": "Hebron",
-   "he": "חברון",
-   "lat": 31.5326,
-   "lon": 35.0995,
-   "note": "亞伯拉罕之墓",
-   "lat_raw": 31.5326,
-   "lon_raw": 35.0995
-  },
-  {
-   "id": "bethel",
-   "name": "伯特利",
-   "en": "Bethel",
-   "he": "בית אל",
-   "lat": 31.9306,
-   "lon": 35.2006,
-   "note": "雅各夢見天梯",
-   "lat_raw": 31.9306,
-   "lon_raw": 35.2006
-  },
-  {
-   "id": "samaria",
-   "name": "撒瑪利亞",
-   "en": "Samaria",
-   "he": "שומרון",
-   "lat": 32.2756,
-   "lon": 35.1914,
-   "note": "北國首都",
-   "lat_raw": 32.2756,
-   "lon_raw": 35.1914
-  },
-  {
-   "id": "megiddo",
-   "name": "米吉多",
-   "en": "Megiddo",
-   "he": "מגידו",
-   "lat": 32.5847,
-   "lon": 35.4477,
-   "note": "哈米吉多頓",
-   "lat_raw": 32.5847,
-   "lon_raw": 35.4477
-  },
-  {
-   "id": "beerseba",
-   "name": "別是巴",
-   "en": "Beersheba",
-   "he": "באר שבע",
-   "lat": 31.253,
-   "lon": 34.7915,
-   "note": "亞伯拉罕立約",
-   "lat_raw": 31.253,
-   "lon_raw": 34.7915
-  },
-  {
-   "id": "masada",
-   "name": "馬撒大",
-   "en": "Masada",
-   "he": "מצדה",
-   "lat": 31.3278,
-   "lon": 35.3915,
-   "note": "死海崖堡",
-   "lat_raw": 31.3278,
-   "lon_raw": 35.3915
-  },
-  {
-   "id": "qumran",
-   "name": "昆蘭",
-   "en": "Qumran",
-   "he": "קומראן",
-   "lat": 31.74083,
-   "lon": 35.45861,
-   "note": "死海古卷",
-   "lat_raw": 31.74083,
-   "lon_raw": 35.45861,
-   "ref_elev_m": -345,
-   "ref_source": "IAA: Khirbet Qumran ruins terrace ca. -345 m, 60-90 m above the Dead Sea shore plain. The 153 m DEM resolves only the plain (-411 m), so a 6 px terrain pad raises the local ground to the documented terrace height; the marker and the terrain now agree.",
-   "pad": true,
-   "pad_radius_px": 6,
-   "coord_source": "Wikipedia: 31.74083 N, 35.45861 E (Khirbet Qumran ruins terrace)",
-   "water_hole": {
-    "radius_m": 250,
-    "body": "Dead Sea"
-   }
-  },
-  {
-   "id": "tiberias",
-   "name": "提比哩亞",
-   "en": "Tiberias",
-   "he": "טבריה",
-   "lat": 32.7922,
-   "lon": 35.5548,
-   "note": "加利利湖西岸",
-   "lat_raw": 32.7922,
-   "lon_raw": 35.5548,
-   "ref_elev_m": -205,
-   "ref_source": "Wikipedia: Tiberias town ~-200 m (range -200 to 200 m); Britannica: 210 m bsl. Lowest quarter of the old city is at or below lake level.",
-   "pad": true,
-   "pad_radius_px": 3,
-   "coord_source": "Wikipedia: 32.7922 N, 35.5548 E (town centre, west shore)",
-   "water_hole": {
-    "radius_m": 250,
-    "body": "Sea of Galilee"
-   }
-  },
-  {
-   "id": "hermon",
-   "name": "黑門山",
-   "en": "Mount Hermon",
-   "he": "חרמון",
-   "lat": 33.127551192346154,
-   "lon": 35.863,
-   "note": "黑門山頂",
-   "lat_raw": 33.258,
-   "lon_raw": 35.863
-  }
- ]
+  "count": 16,
+  "sites": [
+    {
+      "id": "jerusalem",
+      "name": "耶路撒冷",
+      "en": "Jerusalem",
+      "he": "ירושלים",
+      "lat": 31.7683,
+      "lon": 35.2137,
+      "note": "聖殿與大衛城",
+      "lat_raw": 31.7683,
+      "lon_raw": 35.2137
+    },
+    {
+      "id": "telaviv",
+      "name": "特拉維夫",
+      "en": "Tel Aviv",
+      "he": "תל אביב",
+      "lat": 32.0809,
+      "lon": 34.7806,
+      "note": "地中海海岸",
+      "lat_raw": 32.0809,
+      "lon_raw": 34.7806
+    },
+    {
+      "id": "haifa",
+      "name": "海法",
+      "en": "Haifa",
+      "he": "חיפה",
+      "lat": 32.7955,
+      "lon": 34.9888,
+      "note": "迦密山",
+      "lat_raw": 32.7955,
+      "lon_raw": 34.9888
+    },
+    {
+      "id": "nazareth",
+      "name": "拿撒勒",
+      "en": "Nazareth",
+      "he": "נצרת",
+      "lat": 32.702,
+      "lon": 35.2973,
+      "note": "耶穌成長之地",
+      "lat_raw": 32.702,
+      "lon_raw": 35.2973
+    },
+    {
+      "id": "capernaum",
+      "name": "迦百農",
+      "en": "Capernaum",
+      "he": "כפר נחום",
+      "lat": 32.88083,
+      "lon": 35.57553,
+      "note": "加利利海邊",
+      "lat_raw": 32.88083,
+      "lon_raw": 35.57553,
+      "ref_elev_m": -207,
+      "ref_source": "Wikipedia: Capernaum -205 to -207 m; the town stands above the modern high-water line, the harbour quarter lies below it.",
+      "pad": true,
+      "pad_radius_px": 3,
+      "coord_source": "Wikipedia: 32.88083 N, 35.57553 E (via mapcarta/Wikipedia infobox); harbour quarter ~200 m SE of the town centre",
+      "water_hole": {
+        "radius_m": 250,
+        "body": "Sea of Galilee"
+      }
+    },
+    {
+      "id": "bethlehem",
+      "name": "伯利恒",
+      "en": "Bethlehem",
+      "he": "بيت لحم",
+      "lat": 31.7054,
+      "lon": 35.2024,
+      "note": "耶穌降生之地",
+      "lat_raw": 31.7054,
+      "lon_raw": 35.2024
+    },
+    {
+      "id": "jericho",
+      "name": "耶利哥",
+      "en": "Jericho",
+      "he": "אריحا",
+      "lat": 31.8618,
+      "lon": 35.4533,
+      "note": "進入迦南",
+      "lat_raw": 31.8618,
+      "lon_raw": 35.4533
+    },
+    {
+      "id": "hebron",
+      "name": "希伯崙",
+      "en": "Hebron",
+      "he": "חברון",
+      "lat": 31.5326,
+      "lon": 35.0995,
+      "note": "亞伯拉罕之墓",
+      "lat_raw": 31.5326,
+      "lon_raw": 35.0995
+    },
+    {
+      "id": "bethel",
+      "name": "伯特利",
+      "en": "Bethel",
+      "he": "בית אל",
+      "lat": 31.9306,
+      "lon": 35.2006,
+      "note": "雅各夢見天梯",
+      "lat_raw": 31.9306,
+      "lon_raw": 35.2006
+    },
+    {
+      "id": "samaria",
+      "name": "撒瑪利亞",
+      "en": "Samaria",
+      "he": "שומרון",
+      "lat": 32.2756,
+      "lon": 35.1914,
+      "note": "北國首都",
+      "lat_raw": 32.2756,
+      "lon_raw": 35.1914
+    },
+    {
+      "id": "megiddo",
+      "name": "米吉多",
+      "en": "Megiddo",
+      "he": "מגידו",
+      "lat": 32.5847,
+      "lon": 35.4477,
+      "note": "哈米吉多頓",
+      "lat_raw": 32.5847,
+      "lon_raw": 35.4477
+    },
+    {
+      "id": "beerseba",
+      "name": "別是巴",
+      "en": "Beersheba",
+      "he": "באר שבע",
+      "lat": 31.253,
+      "lon": 34.7915,
+      "note": "亞伯拉罕立約",
+      "lat_raw": 31.253,
+      "lon_raw": 34.7915
+    },
+    {
+      "id": "masada",
+      "name": "馬撒大",
+      "en": "Masada",
+      "he": "מצדה",
+      "lat": 31.3278,
+      "lon": 35.3915,
+      "note": "死海崖堡",
+      "lat_raw": 31.3278,
+      "lon_raw": 35.3915
+    },
+    {
+      "id": "qumran",
+      "name": "昆蘭",
+      "en": "Qumran",
+      "he": "קומראן",
+      "lat": 31.74083,
+      "lon": 35.45861,
+      "note": "死海古卷",
+      "lat_raw": 31.74083,
+      "lon_raw": 35.45861,
+      "ref_elev_m": -345,
+      "ref_source": "IAA: Khirbet Qumran ruins terrace ca. -345 m, 60-90 m above the Dead Sea shore plain. The 153 m DEM resolves only the plain (-411 m), so a 6 px terrain pad raises the local ground to the documented terrace height; the marker and the terrain now agree.",
+      "pad": true,
+      "pad_radius_px": 6,
+      "coord_source": "Wikipedia: 31.74083 N, 35.45861 E (Khirbet Qumran ruins terrace)",
+      "water_hole": {
+        "radius_m": 250,
+        "body": "Dead Sea"
+      }
+    },
+    {
+      "id": "tiberias",
+      "name": "提比哩亞",
+      "en": "Tiberias",
+      "he": "טבריה",
+      "lat": 32.7922,
+      "lon": 35.5548,
+      "note": "加利利湖西岸",
+      "lat_raw": 32.7922,
+      "lon_raw": 35.5548,
+      "ref_elev_m": -205,
+      "ref_source": "Wikipedia: Tiberias town ~-200 m (range -200 to 200 m); Britannica: 210 m bsl. Lowest quarter of the old city is at or below lake level.",
+      "pad": true,
+      "pad_radius_px": 3,
+      "coord_source": "Wikipedia: 32.7922 N, 35.5548 E (town centre, west shore)",
+      "water_hole": {
+        "radius_m": 250,
+        "body": "Sea of Galilee"
+      }
+    },
+    {
+      "id": "hermon",
+      "name": "黑門山",
+      "en": "Mount Hermon",
+      "he": "חרמון",
+      "lat": 33.41687,
+      "lon": 35.85645,
+      "note": "黑門山頂",
+      "lat_raw": 33.41687,
+      "lon_raw": 35.85645,
+      "ref_elev_m": 2814,
+      "ref_source": "Wikipedia / SRTM: Jabal al-Shaykh (Mount Hermon) summit 2814 m. The DEM local maximum at this position is 2804-2808 m, i.e. within 10 m of the published height, so the reference elevation is trusted by app.js's |ref_elev_m - dem| <= 15 rule and no terrain pad is needed.",
+      "coord_source": "OSM natural=peak node 4937091522: 33.41687 N, 35.85645 E (Mapcarta and AroundUs give the same point). Wikipedia's summit box gives 33.41611 N, 35.85750 E - 0.0009 deg (~100 m) away, which is one 153 m DEM pixel; at that pixel the bilinear DEM reads 2778.9 m, 35 m below the published summit, so the OSM peak node (which lands on the DEM high point) is used for the marker."
+    }
+  ]
 }

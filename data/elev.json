@@ -1,33 +1,34 @@
 {
-  "min": -1552.85,
-  "max": 1282.0,
+  "min": -1985.51171875,
+  "max": 2808.0,
   "scale": 1.0,
   "offset": 0.0,
-  "decode": "elev_m = (R*256 + G + B/256) - 32768",
-  "heightmap_encoding": "16-bit normalized: v=(R*256+G)/65535 ; elev_m = min + v*(max-min)",
+  "decode": "(R*256 + G + B/256) - 32768 (applies to the source tiles)",
+  "heightmap_encoding": "16-bit normalized: v=(elev-min)/(max-min); q=round(v*65535); R=q>>8; G=q&255; B=0; elev_m = min + ((R*256+G)/65535)*(max-min)",
+  "quantization_step_m": 0.073144,
   "z": 10,
   "tiles": {
     "x0": 610,
     "x1": 614,
-    "y0": 412,
+    "y0": 410,
     "y1": 418,
-    "count": 35
+    "count": 45
   },
   "bbox": {
     "lon_min": 34.453125,
     "lon_max": 36.2109375,
-    "lat_min": 31.052933985705156,
-    "lat_max": 33.13755119234615
+    "lat_min": 31.052933985705145,
+    "lat_max": 33.7243396617476
   },
   "image": {
     "width": 1280,
-    "height": 1792
+    "height": 2304
   },
-  "meters_per_pixel_x": 152.87405657035248,
-  "meters_per_pixel_y": 152.87405657035274,
-  "centre_lat": 32.09524258902565,
+  "meters_per_pixel": 152.87405657196044,
+  "centre_lat": 32.38863682372637,
   "world_metres": {
-    "width": 195678.7924100512,
-    "height": 273950.3093740721
-  }
+    "width": 195678.79241210935,
+    "height": 352221.82634179684
+  },
+  "source": "tools/israel3d_write_heightmap.py over data/tiles/610..614_410..418.png"
 }

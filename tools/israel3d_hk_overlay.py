@@ -59,10 +59,29 @@ FILL_RGB = (120, 190, 255)         # flat district fill
 FILL_ALPHA = 200
 STROKE_RGB = (255, 255, 255)       # opaque white boundary
 
-# App world frame (do not change; mirrors app.js geoToWorld).
-WORLD_WIDTH_M = 195678.79241210935
-WORLD_HEIGHT_M = 273950.3093769531
-MAP_MID_LAT_DEG = 32.09524         # mid-latitude of the Israel map frame
+# App world frame (mirrors app.js geoToWorld). These used to be hardcoded
+# constants matching the OLD DEM window (1280x1792 tiles, lat 31.05..33.14).
+# The grid now runs to lat 33.7243 so that Mount Hermon is inside the DEM, which
+# changed the world height (273950 -> 352222 m) and the mid-latitude
+# (32.09524 -> 32.38864 deg). Leaving the literals here would have made the
+# Hong Kong overlay wrong in two ways at once: the tile would be tiled over a
+# plane of the wrong height, and its true ground scale would use the wrong
+# cosine. They are now read from data/geo.json, which is derived from
+# data/tiles/, so the overlay can never drift away from the map it is drawn on.
+def _load_frame():
+    path = os.path.join(PROJECT, "data", "geo.json")
+    with open(path, encoding="utf-8") as f:
+        g = json.load(f)
+    return (float(g["world_width_m"]), float(g["world_height_m"]),
+            float(g["centre_lat"]))
+
+try:
+    WORLD_WIDTH_M, WORLD_HEIGHT_M, MAP_MID_LAT_DEG = _load_frame()
+except (OSError, KeyError, ValueError):
+    # Fallback for a checkout with no geo.json yet: the pre-Hermon frame.
+    WORLD_WIDTH_M = 195678.79241210935
+    WORLD_HEIGHT_M = 273950.3093769531
+    MAP_MID_LAT_DEG = 32.09524
 
 M_PER_DEG_LON_EQUIRECT = 111320.0  # app's equirectangular X spacing per degree
 M_PER_DEG_LAT_GROUND = 110574.0    # real ground metres per degree of latitude

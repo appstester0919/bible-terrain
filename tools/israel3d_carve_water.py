@@ -28,7 +28,7 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw
 
-DATA = os.path.expanduser("~/work/israel3d/data")
+DATA = os.environ.get("ISRAEL3D_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
 CARVE_DEPTH = 6.0     # metres below the water surface
 BEACH_PX = 10         # width of the graded beach band, in pixels (~1.5 km)
 PAD = 1               # pixels of margin so the bank still meets the water
@@ -181,14 +181,19 @@ def main():
 
     changed = int((carved != dem).sum())
     log("  total pixels changed: %d (%.3f%% of the map)" % (changed, 100.0 * changed / dem.size))
-    # Write back in the same 16-bit encoding: R = high byte, G = low byte.
+    # Write back in the SAME 16-bit encoding the rest of the pipeline uses:
+    # v = (elev - vmin) / (vmax - vmin); q = round(v * 65535); R = q >> 8;
+    # G = q & 255; B = 0.  The old code wrote R = round(v*255) and
+    # G = round((v*255 - R)*256) instead, which throws away the fractional part
+    # of the high byte and re-quantises EVERY pixel - it shifted the whole DEM
+    # by up to ~10 m and dragged Mount Hermon's summit down from 2803 m to
+    # 2786 m, which then broke the site's published-height trust rule.
     nv = (carved - vmin) / (vmax - vmin)
     nv = np.clip(nv, 0.0, 1.0)
-    hi = np.floor(nv * 255.0 + 0.5).astype(np.uint8)
-    lo = np.floor((nv * 255.0 - hi) * 256.0 + 0.5).astype(np.uint8)
+    q = np.rint(nv * 65535.0).astype(np.uint16)
     out = np.zeros((H, W, 3), dtype=np.uint8)
-    out[:, :, 0] = hi
-    out[:, :, 1] = lo
+    out[:, :, 0] = (q >> 8).astype(np.uint8)
+    out[:, :, 1] = (q & 0xFF).astype(np.uint8)
     out[:, :, 2] = 0
     Image.fromarray(out, "RGB").save(os.path.join(DATA, "heightmap_water.png"))
     log("  heightmap_water.png written: %dx%d" % (W, H))

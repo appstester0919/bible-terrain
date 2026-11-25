@@ -1,22 +1,23 @@
 {
   "projection": "webmercator-3857-like (equirectangular spacing in X, mercator in Y)",
   "width_px": 1280,
-  "height_px": 1792,
+  "height_px": 2304,
   "lon_min": 34.453125,
   "lon_max": 36.2109375,
-  "lat_top": 33.137551192346145,
+  "lat_top": 33.7243396617476,
   "lat_bottom": 31.052933985705145,
-  "merc_y_top": 0.6135923151542565,
+  "merc_y_top": 0.6258641614573418,
   "merc_y_bot": 0.5706408530934584,
   "meters_per_pixel": 152.87405657196044,
   "world_width_m": 195678.79241210935,
-  "world_height_m": 273950.3093769531,
+  "world_height_m": 352221.82634179684,
+  "centre_lat": 32.38863682372637,
   "z": 10,
   "tiles": {
     "x0": 610,
     "x1": 614,
-    "y0": 412,
+    "y0": 410,
     "y1": 418,
-    "count": 35
+    "count": 45
   }
 }

@@ -24,7 +24,15 @@ const HK_OVERLAY_URL = 'data/hk_overlay.png';
 // COS_IL) so that "one Hong Kong" on screen equals the real Hong Kong placed
 // against the real distance between two biblical sites - and the scale bar is
 // corrected by the same factor, so the two always agree.
-const COS_IL = Math.cos(32.09524 * Math.PI / 180);
+// COS_IL is the cosine of the map's centre latitude, and it is what turns a
+// screen distance into a true ground distance (the frame is Mercator, so
+// ground = screen / cos(lat)). It used to be a literal, 32.09524 deg, which was
+// the centre latitude of the OLD DEM window (lat 31.05..33.14). When the grid
+// was extended north to include Mount Hermon the centre moved to 32.38864 deg,
+// and a stale COS_IL would have silently skewed the scale bar and the Hong Kong
+// overlay by ~0.4%. It is now derived from data/geo.json, which is derived
+// from data/tiles/, so it can never drift away from the DEM again.
+let COS_IL = Math.cos(32.09524 * Math.PI / 180);   // replaced by geo.json at load time
 // water_vector.json holds the Natural Earth outlines. Their AREA is the
 // published figure (Dead Sea ~850 km2 at -401 m, which includes the southern
 // basin that SRTM fills at -398 m, so a DEM contour cannot draw it and comes
@@ -39,7 +47,12 @@ const CLEARANCE = 50;          // never fly below terrain + 50 m
 // Mobile GPUs cannot afford the full 640x896 terrain (574k vertices) plus a
 // flat-shaded material, so the mesh is reduced on touch devices.
 const MOBILE = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) || innerWidth < 820;
-const TILE_W = MOBILE ? 384 : 640, TILE_H = MOBILE ? 538 : 896;   // from 1280x1792
+// Terrain mesh resolution. This is a DECIMATION FACTOR of the DEM grid, not an
+// absolute vertex count: the old build hardcoded 640x896 because the grid was
+// 1280x1792 (half in each axis). The grid is now 1280x2304, so hardcoding 640x896
+// would have covered only 39% of the map's height and left the northern third
+// of the terrain flat. The factor is applied to whatever the loaded DEM is.
+const MESH_DECIM = MOBILE ? 0.30 : 0.50;           // 0.30 -> ~384x691, 0.50 -> 640x1152
 
 const state = {
   meta: null, sites: [], elev: null,
@@ -59,6 +72,13 @@ async function loadElevJson() {
   // app still runs (slightly misaligned) instead of failing to boot.
   try {
     meta.geo = await (await fetch(GEO_URL)).json();
+    // COS_IL is the cosine of the map's centre latitude: it converts a screen
+    // distance to a true ground distance (the frame is Mercator, so
+    // ground = screen / cos(lat)). It is derived from geo.json so the scale bar
+    // and the Hong Kong overlay always agree with the DEM that is being drawn.
+    if (typeof meta.geo.centre_lat === 'number') {
+      COS_IL = Math.cos(meta.geo.centre_lat * Math.PI / 180);
+    }
   } catch (err) {
     console.error('geo.json missing, falling back to legacy mapping:', err);
     const b = meta.bbox;
@@ -580,7 +600,11 @@ function initThree() {
 
 function buildTerrain(meta, elev, W, H) {
   const g = meta.geo;
-  const geo = new THREE.PlaneGeometry(g.world_width_m, g.world_height_m, TILE_W - 1, TILE_H - 1);
+  // Mesh resolution follows the DEM grid, so the mesh always spans the whole map
+  // no matter how the DEM window changes (see MESH_DECIM).
+  const meshW = Math.max(2, Math.round(W * MESH_DECIM));
+  const meshH = Math.max(2, Math.round(H * MESH_DECIM));
+  const geo = new THREE.PlaneGeometry(g.world_width_m, g.world_height_m, meshW - 1, meshH - 1);
   geo.rotateX(-Math.PI / 2);                    // XY plane -> XZ ground plane
 
   const pos = geo.attributes.position;
@@ -675,7 +699,6 @@ function buildMarkers(meta, sites) {
   sites.forEach((s) => {
     const { x, z } = geoToWorld(meta, s.lat, s.lon);
     let e = elevAt(meta, elev_full, elevW, elevH, x, z);
-    if (s.id === 'hermon') e = 2236;                  // summit lies outside the DEM bbox
     // Authoritative elevation from the source (data/sites.json ref_elev_m).
     // Only trusted when it agrees with the rendered terrain: a 153 m DEM pixel
     // cannot resolve a lakeshore village, so Capernaum's pixel averages the
@@ -1244,14 +1267,23 @@ function updateFlight(dt) {
   // converted to a -1..1 command with a dead zone and a quadratic ramp, then
   // to a capped rate in degrees per second. This is what stops the camera
   // from snapping around when the phone is moved slightly.
+  // Gyro = VIEW ORIENTATION ONLY.
+  //
+  // The sensor may rotate the camera (yaw / pitch) but it must NEVER move
+  // it. Movement - forward, back, strafe, climb, descend - belongs to the
+  // buttons and the keyboard only. Previously the gyro branch forced
+  //   fwd = 1        (arcade flight: always moving)  and
+  //   fwd += accel   (shake the phone to fly faster)
+  // which made the camera fly forward, climb and descend on its own and
+  // left the viewer stranded mid-air with no way to stop. With the gyro
+  // enabled the position is exactly the same as with it disabled: the
+  // camera stays where it is and only the view turns.
   const steer = gyroSteer(dt);
   if (steer) {
     const turnRate = THREE.MathUtils.degToRad(GYRO.maxTurn * gyro.sens) * steer.turnCmd;
     const pitchRate = THREE.MathUtils.degToRad(GYRO.maxPitch * gyro.sens) * steer.pitchCmd;
     yaw += turnRate * dt;
     pitch = THREE.MathUtils.clamp(pitch + pitchRate * dt, -MAXPITCH, MAXPITCH);
-    if (fwd === 0) fwd = 1;                    // arcade flight: always moving
-    if (gyro.accel > 12) fwd = 1 + Math.min(0.6, (gyro.accel - 12) * 0.05);
   }
 
   const dir = new THREE.Vector3();

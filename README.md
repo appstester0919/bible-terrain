@@ -139,10 +139,19 @@ panel and the right site list are **drawers**: hidden by default, opened by
 tapping the slim handle on that edge, closed by tapping the handle again, the
 `X` inside the panel, or the map itself. The map stays unobstructed.
 
-The button row is a single horizontally scrollable strip above the flight pad;
-the scale bar and compass sit in the top corners. Measured overlap check
-across 412x915, 360x740, 820x1180 and 1440x900: **zero overlapping or
-offscreen panels**.
+On a **phone held sideways** (short, wide windows) the button row moves to a
+single-row strip in the top-left corner and the scale chip drops into the
+empty middle of the bottom band, between the D-pad and the thumb cluster. The
+strip is as wide as it needs to be, so **every button is on screen at once and
+nothing is clipped or sideways-scrolled**, while the middle of the 3D view —
+where the map actually is — stays completely clear. The site drawer is bounded
+and scrollable, and its `✕` sits in a sticky header so it stays reachable no
+matter how far you scroll the list.
+
+Measured browser regression (`verify_landscape_layout.js`, 33 checks):
+**33/33 pass** at 844×390, 740×360 and 900×500, with no portrait
+(390×844) or desktop (1920×1080, 1000×1200) regression, exactly one `#btn_boost`
+in the DOM at every size, and no console errors.
 
 ### 5. Metric-correct scale bar
 The scale bar is measured empirically, not algebraically: a ray is marched against
@@ -177,21 +186,61 @@ then open <http://127.0.0.1:8765/>.
 | app.js | terrain mesh, hypsometric colours, flight controls, markers, HK overlay, 2D mode, gyro input |
 | vendor/three.module.js | three.js r160 (vendored) |
 | vendor/earcut.module.js | earcut 3.2.4 (vendored, polygon triangulation for water vectors) |
-| data/heightmap_water.png | 1280x1792 decoded DEM, 16-bit value packed in R/G, with the final water carve |
+| data/heightmap.png | 1280x2304 decoded DEM, 16-bit value packed in R/G (R = high byte, G = low byte) |
+| data/heightmap_water.png | the same DEM with the final water carve |
 | data/elev.json | min/max elevation, bbox, metres-per-pixel, tile provenance |
 | data/sites.json | 16 biblical sites: Chinese / English / Hebrew names + coords |
 | data/water_vector.json | vector water outlines with the two site holes (Capernaum, Tiberias) |
 | data/water_meta.json | authoritative water levels and areas per basin |
 | data/hk_overlay.png | RGBA 1024x742 Hong Kong raster (fill alpha 200, opaque white district borders) |
 | data/hk_overlay_meta.json | image size, real-world size, tile world size, repeat and offset |
-| data/tiles/ | the 36 source terrarium tiles (z=10) used to build the heightmap |
-| tools/ | reproducible build scripts (water vector, site holes, carve, HK overlay) |
+| data/geo.json | world frame: bbox, world size in metres, centre latitude, metres-per-pixel |
+| data/tiles/ | the 45 source terrarium tiles (z=10, x 610–614 / y 410–418) used to build the heightmap |
+| tools/israel3d_build.sh | **the** build chain — runs every stage below in order |
+| tools/israel3d_write_heightmap.py | tiles → heightmap.png + elev.json (the DEM) |
+| tools/israel3d_derive_geo.py | elev.json → geo.json + sites_pixel.json |
+| tools/ | the rest of the reproducible build scripts (water vector, site holes, carve, shore, HK overlay, diagnostics) |
 
 ## Rebuild
 
-The build is fully offline-capable (all network inputs are cached in `data/cache/`):
+Everything under `data/` that is not a source tile is generated. There is exactly
+one build chain, and it starts from the committed DEM tiles in `data/tiles/`:
 
-    bash tools/israel3d_build_water.sh
+    bash tools/israel3d_build.sh
+
+The stages run in this order, and each one reads the previous stage's output —
+there is no second place where the grid size or the world size is written down:
+
+| # | Stage | Tool | Produces |
+|---|-------|------|----------|
+| 1 | DEM | `tools/israel3d_write_heightmap.py` | `data/heightmap.png`, `data/elev.json` |
+| 2 | Geo frame | `tools/israel3d_derive_geo.py` | `data/geo.json`, `data/sites_pixel.json` |
+| 3 | Water | `tools/israel3d_water_v12.py` | `data/water.png`, `water_meta.json`, `rivers.json`, `coastline.json`, `water_vector.json` |
+| 4 | Site pads | `tools/israel3d_site_holes.py` | pads punched into the DEM |
+| 5 | Carve | `tools/israel3d_carve_water.py` | `data/heightmap_water.png` |
+| 6 | Shore | `tools/israel3d_water_shore.py` | `data/water_shore.json` |
+| 7 | Shore fix | `tools/israel3d_shore_local_fix.py` | `data/water_vector_local.json` |
+| 8 | HK overlay | `tools/israel3d_hk_overlay.py` | `data/hk_overlay_meta.json` |
+| 9 | Alignment | `tools/israel3d_align_check.py` | diagnostic report (geo↔pixel mapping) |
+| 10 | Site audit | `tools/israel3d_site_audit.py` | diagnostic report (markers vs water) |
+
+The DEM grid is defined **once**, by the tile window in `tools/israel3d_build.sh`:
+
+    TILE_X0=610; TILE_X1=614; TILE_Y0=410; TILE_Y1=418   # 45 tiles → 1280×2304 px
+
+Rows 410–418 are what give the map its northern extension: they carry Mount
+Hermon (33.7243 °N edge), which the old 412–418 window cut off entirely. The
+world size, the terrain mesh resolution, the water extent and the Hong Kong
+overlay scale are all derived from `data/elev.json`, so they follow the grid
+automatically.
+
+Rebuilding is **deterministic** — the same tiles always produce a byte-identical
+`data/heightmap.png`.
+
+The water stage needs network access the first time (Natural Earth coastlines,
+OSM rivers); afterwards it reuses `data/cache/`. To rebuild fully offline:
+
+    ISRAEL3D_OFFLINE=1 bash tools/israel3d_build.sh
 
 ## Controls
 
@@ -217,10 +266,12 @@ Altitude is clamped to terrain + 50 m, so you cannot fly through the ground.
 * Vertical exaggeration defaults to 3x for legibility (true 1:1 relief is
   invisible from the air). Override with `?exag=1`. HUD altitude always reports
   true metres.
-* z=10 terrarium/SRTM peaks at 1282 m inside this window; Mount Hermon's true
-  2236 m summit lies just outside the tile bbox, so its coordinates are clamped
-  to the coverage edge and its marker height is corrected from an external
-  reference.
+* The DEM is z=10 terrarium/SRTM, whose vertical range is lower than modern
+  survey data: the grid peaks at 2808 m against Mount Hermon's published
+  2814 m. The marker sits at the OSM peak node (`natural=peak`,
+  node 4937091522, 33.41687 °N 35.85645 °E) and reads 2803 m from the DEM —
+  a 10.8 m difference against the published figure, which is within the DEM's
+  own resolution. The site list shows the published 2814 m.
 * Water bodies are drawn at their authoritative modern levels (Dead Sea
   `-401 m`, Sea of Galilee `-209 m`, Mediterranean `0 m`); they are not a
   reconstruction of first-century shorelines.
